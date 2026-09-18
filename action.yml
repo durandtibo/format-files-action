@@ -19,7 +19,7 @@ inputs:
     required: false
     default: 'lts/*'
   config-path:
-    description: 'Path to a Prettier config file to use. Defaults to this action''s own .prettierrc.yml'
+    description: "Path to a Prettier config file to use. Defaults to this action's own .prettierrc.yml"
     required: false
     default: ''
   check:
