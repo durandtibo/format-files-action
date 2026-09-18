@@ -1,1 +1,38 @@
 # format-yaml-action
+
+A GitHub Action that formats (or checks the formatting of) YAML files used as
+GitHub Actions workflows and actions in `.github/`, using [Prettier](https://prettier.io/).
+
+## Usage
+
+The action **rewrites** YAML files in place.
+
+```yaml
+- uses: actions/checkout@v4
+- uses: <owner>/format-yaml-action@v1
+
+- name: Commit changes
+  run: |
+    git config user.name 'github-actions[bot]'
+    git config user.email 'github-actions[bot]@users.noreply.github.com'
+    git diff --quiet || (git add -A && git commit -m 'style: format yaml files' && git push)
+```
+
+## Inputs
+
+| Name               | Description                                         | Required | Default                              |
+| ------------------ | ----------------------------------------------------- | -------- | -------------------------------------- |
+| `path`              | Path(s)/glob patterns to format, space-separated       | No       | `.github/**/*.yml .github/**/*.yaml`   |
+| `prettier-version`  | Version (or dist-tag) of Prettier to use, e.g. `latest` | No       | `latest`                               |
+| `node-version`      | Version of Node.js to use                              | No       | `lts/*`                                |
+| `config-path`       | Path to a Prettier config file to use                  | No       | `${{ github.action_path }}/.prettierrc.yml` |
+
+By default, `config-path` points at this repo's [`.prettierrc.yml`](.prettierrc.yml), so the
+action enforces the same style regardless of whether the consuming repository defines its own
+Prettier config. Pass a different `config-path` (or point it at a config in the consumer's
+checkout) to override it.
+
+## Development
+
+This repository dogfoods itself: [`.github/workflows/format-yaml.yml`](.github/workflows/format-yaml.yml)
+runs the action against its own `.github` directory and commits any changes on push to `main`.

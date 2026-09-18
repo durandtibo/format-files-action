@@ -1,0 +1,26 @@
+name: Format YAML
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Format YAML files
+        uses: ./
+        with:
+          path: '.github/**/*.yml .github/**/*.yaml'
+
+      - name: Commit changes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git diff --quiet || (git add -A && git commit -m 'style: format yaml files' && git push)
