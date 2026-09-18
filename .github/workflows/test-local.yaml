@@ -43,6 +43,7 @@ jobs:
           cp test-data/input.yml tmp/default/workflow.yml
 
       - name: 🧪 Format YAML file
+        id: format-default
         uses: ./
         with:
           path: tmp/default/workflow.yml
@@ -51,6 +52,7 @@ jobs:
         run: |
           source scripts/test-helper.sh
           assert_files_equal tmp/default/workflow.yml test-data/expected.yml
+          assert_equal '${{ steps.format-default.outputs.changed }}' 'true' 'changed output'
 
       # -----------------------------------------------------------------------
       # Test 2: Already-formatted file is left untouched (idempotent)
@@ -61,6 +63,7 @@ jobs:
           cp test-data/expected.yml tmp/idempotent/workflow.yml
 
       - name: 🧪 Format already-formatted file
+        id: format-idempotent
         uses: ./
         with:
           path: tmp/idempotent/workflow.yml
@@ -69,6 +72,7 @@ jobs:
         run: |
           source scripts/test-helper.sh
           assert_files_equal tmp/idempotent/workflow.yml test-data/expected.yml
+          assert_equal '${{ steps.format-idempotent.outputs.changed }}' 'false' 'changed output'
 
       # -----------------------------------------------------------------------
       # Test 3: Custom config-path is honored
@@ -114,3 +118,47 @@ jobs:
         run: |
           source scripts/test-helper.sh
           assert_files_equal tmp/github-default/repo/.github/workflows/sample.yml test-data/expected.yml
+
+      # -----------------------------------------------------------------------
+      # Test 5: check mode passes on already-formatted file, without writing
+      # -----------------------------------------------------------------------
+      - name: 📝 Prepare file for check-mode success test
+        run: |
+          mkdir -p tmp/check-pass
+          cp test-data/expected.yml tmp/check-pass/workflow.yml
+
+      - name: 🧪 Check already-formatted file
+        id: check-pass
+        uses: ./
+        with:
+          path: tmp/check-pass/workflow.yml
+          check: true
+
+      - name: ✓ Verify check succeeded and file was untouched
+        run: |
+          source scripts/test-helper.sh
+          assert_files_equal tmp/check-pass/workflow.yml test-data/expected.yml
+          assert_equal '${{ steps.check-pass.outputs.changed }}' 'false' 'changed output'
+
+      # -----------------------------------------------------------------------
+      # Test 6: check mode fails on badly-formatted file, without writing
+      # -----------------------------------------------------------------------
+      - name: 📝 Prepare file for check-mode failure test
+        run: |
+          mkdir -p tmp/check-fail
+          cp test-data/input.yml tmp/check-fail/workflow.yml
+
+      - name: 🧪 Check badly-formatted file
+        id: check-fail
+        uses: ./
+        continue-on-error: true
+        with:
+          path: tmp/check-fail/workflow.yml
+          check: true
+
+      - name: ✓ Verify check failed and file was untouched
+        run: |
+          source scripts/test-helper.sh
+          assert_equal '${{ steps.check-fail.outcome }}' 'failure' 'step outcome'
+          assert_equal '${{ steps.check-fail.outputs.changed }}' 'true' 'changed output'
+          assert_files_equal tmp/check-fail/workflow.yml test-data/input.yml
