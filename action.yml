@@ -1,0 +1,36 @@
+name: 'Format YAML'
+description: 'Format YAML files (GitHub Actions workflows/actions) using Prettier'
+author: 'Thibaut Durand'
+branding:
+  icon: 'align-left'
+  color: 'blue'
+
+inputs:
+  path:
+    description: 'Path(s) to format, space-separated glob patterns'
+    required: false
+    default: '.github/**/*.yml .github/**/*.yaml'
+  prettier-version:
+    description: 'Version (or dist-tag) of Prettier to use'
+    required: false
+    default: 'latest'
+  node-version:
+    description: 'Version of Node.js to use'
+    required: false
+    default: 'lts/*'
+  config-path:
+    description: 'Path to a Prettier config file to use'
+    required: false
+    default: '${{ github.action_path }}/.prettierrc.yml'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Format YAML files
+      shell: bash
+      run: npx --yes prettier@${{ inputs.prettier-version }} --config "${{ inputs.config-path }}" --write ${{ inputs.path }}
