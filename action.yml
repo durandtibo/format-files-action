@@ -22,6 +22,15 @@ inputs:
     description: 'Path to a Prettier config file to use. Defaults to this action''s own .prettierrc.yml'
     required: false
     default: ''
+  check:
+    description: 'Check formatting without writing changes. Fails the action if any file is not formatted'
+    required: false
+    default: 'false'
+
+outputs:
+  changed:
+    description: 'Whether any file was reformatted (write mode) or is not correctly formatted (check mode)'
+    value: ${{ steps.format.outputs.changed }}
 
 runs:
   using: 'composite'
@@ -32,7 +41,26 @@ runs:
         node-version: ${{ inputs.node-version }}
 
     - name: Format YAML files
+      id: format
       shell: bash
       env:
         CONFIG_PATH: ${{ inputs.config-path || format('{0}/.prettierrc.yml', github.action_path) }}
-      run: npx --yes prettier@${{ inputs.prettier-version }} --config "$CONFIG_PATH" --no-error-on-unmatched-pattern --write ${{ inputs.path }}
+        PRETTIER_VERSION: ${{ inputs.prettier-version }}
+        PATTERNS: ${{ inputs.path }}
+        CHECK: ${{ inputs.check }}
+      run: |
+        if [ "$CHECK" = 'true' ]; then
+          if npx --yes prettier@"$PRETTIER_VERSION" --config "$CONFIG_PATH" --no-error-on-unmatched-pattern --check $PATTERNS; then
+            echo 'changed=false' >>"$GITHUB_OUTPUT"
+          else
+            echo 'changed=true' >>"$GITHUB_OUTPUT"
+            exit 1
+          fi
+        else
+          changed_files=$(npx --yes prettier@"$PRETTIER_VERSION" --config "$CONFIG_PATH" --no-error-on-unmatched-pattern --write --list-different $PATTERNS)
+          if [ -n "$changed_files" ]; then
+            echo 'changed=true' >>"$GITHUB_OUTPUT"
+          else
+            echo 'changed=false' >>"$GITHUB_OUTPUT"
+          fi
+        fi

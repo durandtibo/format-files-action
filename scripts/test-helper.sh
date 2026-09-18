@@ -34,3 +34,17 @@ assert_files_differ() {
 
   print_success "'$actual' was modified as expected"
 }
+
+# assert_equal <actual> <expected> <label>
+assert_equal() {
+  local actual="$1"
+  local expected="$2"
+  local label="$3"
+
+  if [ "$actual" != "$expected" ]; then
+    print_error "$label: expected '$expected' but got '$actual'"
+    exit 1
+  fi
+
+  print_success "$label is '$expected'"
+}
