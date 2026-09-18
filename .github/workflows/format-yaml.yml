@@ -2,14 +2,19 @@ name: Format YAML
 
 on:
   push:
-    branches: [main]
-  workflow_dispatch:
+    branches:
+      - main
+  workflow_call:
+  workflow_dispatch: # to trigger manually
+
+permissions:
+  contents: write
 
 jobs:
   format:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+    timeout-minutes: 2
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -17,9 +22,10 @@ jobs:
       - name: Format YAML files
         uses: ./
         with:
-          path: '.github/**/*.yml .github/**/*.yaml'
+          path: .github/**/*.yml .github/**/*.yaml
 
       - name: Commit changes
+        if: github.event_name == 'push'
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
