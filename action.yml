@@ -49,15 +49,19 @@ runs:
         PATTERNS: ${{ inputs.path }}
         CHECK: ${{ inputs.check }}
       run: |
+        # shellcheck disable=SC2206 # PATTERNS is intentionally split into
+        # multiple glob-pattern arguments on unquoted whitespace.
+        patterns=($PATTERNS)
+
         if [ "$CHECK" = 'true' ]; then
-          if npx --yes prettier@"$PRETTIER_VERSION" --config "$CONFIG_PATH" --no-error-on-unmatched-pattern --check $PATTERNS; then
+          if npx --yes prettier@"$PRETTIER_VERSION" --config "$CONFIG_PATH" --no-error-on-unmatched-pattern --check "${patterns[@]}"; then
             echo 'changed=false' >>"$GITHUB_OUTPUT"
           else
             echo 'changed=true' >>"$GITHUB_OUTPUT"
             exit 1
           fi
         else
-          changed_files=$(npx --yes prettier@"$PRETTIER_VERSION" --config "$CONFIG_PATH" --no-error-on-unmatched-pattern --write --list-different $PATTERNS)
+          changed_files=$(npx --yes prettier@"$PRETTIER_VERSION" --config "$CONFIG_PATH" --no-error-on-unmatched-pattern --write --list-different "${patterns[@]}")
           if [ -n "$changed_files" ]; then
             echo 'changed=true' >>"$GITHUB_OUTPUT"
           else
