@@ -19,9 +19,9 @@ inputs:
     required: false
     default: 'lts/*'
   config-path:
-    description: 'Path to a Prettier config file to use'
+    description: 'Path to a Prettier config file to use. Defaults to this action''s own .prettierrc.yml'
     required: false
-    default: '${{ github.action_path }}/.prettierrc.yml'
+    default: ''
 
 runs:
   using: 'composite'
@@ -33,4 +33,6 @@ runs:
 
     - name: Format YAML files
       shell: bash
-      run: npx --yes prettier@${{ inputs.prettier-version }} --config "${{ inputs.config-path }}" --write ${{ inputs.path }}
+      env:
+        CONFIG_PATH: ${{ inputs.config-path || format('{0}/.prettierrc.yml', github.action_path) }}
+      run: npx --yes prettier@${{ inputs.prettier-version }} --config "$CONFIG_PATH" --write ${{ inputs.path }}
