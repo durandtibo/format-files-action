@@ -8,14 +8,27 @@ permissions:
   contents: read
 
 jobs:
+  config:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      os_all: ${{ steps.cfg.outputs.os_all }}
+    steps:
+      - id: cfg
+        uses: durandtibo/workflow-config-action@main
+
   test:
+    needs: config
     runs-on: ${{ matrix.os }}
     timeout-minutes: 2
     strategy:
       max-parallel: 8
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04, ubuntu-22.04, macos-latest, macos-15, macos-14]
+        os: ${{ fromJSON(needs.config.outputs.os_all) }}
+    defaults:
+      run:
+        shell: bash
 
     steps:
       - name: Checkout
