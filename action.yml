@@ -35,4 +35,4 @@ runs:
       shell: bash
       env:
         CONFIG_PATH: ${{ inputs.config-path || format('{0}/.prettierrc.yml', github.action_path) }}
-      run: npx --yes prettier@${{ inputs.prettier-version }} --config "$CONFIG_PATH" --write ${{ inputs.path }}
+      run: npx --yes prettier@${{ inputs.prettier-version }} --config "$CONFIG_PATH" --no-error-on-unmatched-pattern --write ${{ inputs.path }}
