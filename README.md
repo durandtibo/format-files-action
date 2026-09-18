@@ -36,3 +36,9 @@ checkout) to override it.
 
 This repository dogfoods itself: [`.github/workflows/format-yaml.yml`](.github/workflows/format-yaml.yml)
 runs the action against its own `.github` directory and commits any changes on push to `main`.
+
+Pull requests are validated by [`.github/workflows/ci.yaml`](.github/workflows/ci.yaml), which runs
+[`.github/workflows/test-local.yaml`](.github/workflows/test-local.yaml) — a matrix of Linux/macOS
+runners that exercises the action against fixtures in [`test-data/`](test-data) to check that
+badly-formatted YAML gets fixed, already-formatted YAML is left untouched, and `config-path` is
+honored.

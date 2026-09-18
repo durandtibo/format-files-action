@@ -1,0 +1,103 @@
+name: Test Local Action
+
+on:
+  workflow_call:
+  workflow_dispatch: # to trigger manually
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 2
+    strategy:
+      max-parallel: 8
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04, ubuntu-22.04, macos-latest, macos-15, macos-14]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------------
+      # Test 1: Formats a badly-formatted file in place
+      # -----------------------------------------------------------------------
+      - name: 📝 Prepare unformatted file
+        run: |
+          mkdir -p tmp/default
+          cp test-data/input.yml tmp/default/workflow.yml
+
+      - name: 🧪 Format YAML file
+        uses: ./
+        with:
+          path: tmp/default/workflow.yml
+
+      - name: ✓ Verify formatted output
+        run: |
+          source scripts/test-helper.sh
+          assert_files_equal tmp/default/workflow.yml test-data/expected.yml
+
+      # -----------------------------------------------------------------------
+      # Test 2: Already-formatted file is left untouched (idempotent)
+      # -----------------------------------------------------------------------
+      - name: 📝 Prepare already-formatted file
+        run: |
+          mkdir -p tmp/idempotent
+          cp test-data/expected.yml tmp/idempotent/workflow.yml
+
+      - name: 🧪 Format already-formatted file
+        uses: ./
+        with:
+          path: tmp/idempotent/workflow.yml
+
+      - name: ✓ Verify no changes
+        run: |
+          source scripts/test-helper.sh
+          assert_files_equal tmp/idempotent/workflow.yml test-data/expected.yml
+
+      # -----------------------------------------------------------------------
+      # Test 3: Custom config-path is honored
+      # -----------------------------------------------------------------------
+      - name: 📝 Prepare file for custom config test
+        run: |
+          mkdir -p tmp/custom-config
+          cp test-data/input.yml tmp/custom-config/workflow.yml
+          echo 'singleQuote: false' > tmp/custom-config/.prettierrc.yml
+          echo 'printWidth: 100' >> tmp/custom-config/.prettierrc.yml
+
+      - name: 🧪 Format with custom config
+        uses: ./
+        with:
+          path: tmp/custom-config/workflow.yml
+          config-path: tmp/custom-config/.prettierrc.yml
+
+      - name: ✓ Verify double quotes were used
+        run: |
+          source scripts/test-helper.sh
+
+          if ! grep -q '"Sample Workflow"' tmp/custom-config/workflow.yml; then
+            print_error "Custom config-path was not honored"
+            exit 1
+          fi
+
+          print_success "Custom config-path was honored"
+
+      # -----------------------------------------------------------------------
+      # Test 4: Default path picks up files under .github
+      # -----------------------------------------------------------------------
+      - name: 📝 Prepare .github fixture
+        run: |
+          mkdir -p tmp/github-default/repo/.github/workflows
+          cp test-data/input.yml tmp/github-default/repo/.github/workflows/sample.yml
+
+      - name: 🧪 Format with default path
+        uses: ./
+        with:
+          path: tmp/github-default/repo/.github/**/*.yml tmp/github-default/repo/.github/**/*.yaml
+
+      - name: ✓ Verify default-path file was formatted
+        run: |
+          source scripts/test-helper.sh
+          assert_files_equal tmp/github-default/repo/.github/workflows/sample.yml test-data/expected.yml
