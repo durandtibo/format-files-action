@@ -40,6 +40,7 @@ jobs:
         run: |
           mkdir -p tmp-format-test
           printf 'foo:    bar\nbaz:  qux\n' >tmp-format-test/bad.yaml
+          # shellcheck disable=SC2016 # writing literal shell source as data, not expanding it here
           printf '# bad shell\nfoo="bar"\nif [ "$foo" = "bar" ]; then\necho ok\nfi\n' >tmp-format-test/bad.sh
           printf '#   heading\n\n*  item\n*   item2\n' >tmp-format-test/bad.md
           printf 'all:\n\t\t@echo    hi\n' >bad.mk
