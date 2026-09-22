@@ -36,6 +36,7 @@ keep their versions and configs in sync. This action centralizes that:
 
    Each tool is installed on demand (via Homebrew/apt/npm/pipx, depending on the tool and OS) if
    it isn't already on the runner.
+
 3. Diffs the working tree with `git diff` to determine the `changed` output.
 4. **Check mode** (`check: true`): if anything changed, reverts it with `git checkout -- .` and
    fails the step. No pull request is opened.
@@ -51,35 +52,35 @@ keep their versions and configs in sync. This action centralizes that:
 
 ## Requirements
 
-| Requirement         | Notes                                                                     |
-| -------------------- | -------------------------------------------------------------------------- |
-| `actions/checkout`  | Must run before this action so there are files (and a git repo) to format. |
-| `make`              | Must be available on the runner (present by default on GitHub-hosted `ubuntu-*`/`macos-*` runners). |
-| `contents: write`   | Needed on the job if a pull request should be opened (write mode).       |
-| `pull-requests: write` | Needed on the job if a pull request should be opened (write mode).    |
+| Requirement            | Notes                                                                                               |
+| ---------------------- | --------------------------------------------------------------------------------------------------- |
+| `actions/checkout`     | Must run before this action so there are files (and a git repo) to format.                          |
+| `make`                 | Must be available on the runner (present by default on GitHub-hosted `ubuntu-*`/`macos-*` runners). |
+| `contents: write`      | Needed on the job if a pull request should be opened (write mode).                                  |
+| `pull-requests: write` | Needed on the job if a pull request should be opened (write mode).                                  |
 
 ## Inputs
 
-| Name                      | Description                                                                                                  | Required | Default                                              |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------ |
-| `node-version`            | Version of Node.js to use (needed by Prettier and markdownlint).                                             | No       | `lts/*`                                              |
-| `check`                   | Check formatting without writing changes; fails the action if any file is not formatted.                     | No       | `false`                                              |
-| `create-pull-request`     | Open a pull request with the changes using peter-evans/create-pull-request. Ignored when `check` is `true`.  | No       | `true`                                               |
-| `token`                   | Token used by peter-evans/create-pull-request to create the pull request. Ignored if `github-app-client-id` is set. | No | `${{ github.token }}`                                |
-| `github-app-client-id`    | Client ID of a GitHub App used to generate a token for creating the pull request, instead of `token`.        | No       | (none)                                               |
-| `github-app-private-key`  | Private key of the GitHub App identified by `github-app-client-id`.                                          | No       | (none)                                               |
-| `branch`                  | Branch name used by peter-evans/create-pull-request.                                                         | No       | `bot/format-files`                                   |
-| `commit-message`          | Commit message used by peter-evans/create-pull-request.                                                      | No       | `style: format files`                                |
-| `title`                   | Pull request title used by peter-evans/create-pull-request.                                                  | No       | `style: format files`                                |
-| `body`                    | Pull request body used by peter-evans/create-pull-request.                                                   | No       | `Format YAML, Makefile, shell, and Markdown files.`  |
+| Name                     | Description                                                                                                         | Required | Default                                             |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------------------------------- |
+| `node-version`           | Version of Node.js to use (needed by Prettier and markdownlint).                                                    | No       | `lts/*`                                             |
+| `check`                  | Check formatting without writing changes; fails the action if any file is not formatted.                            | No       | `false`                                             |
+| `create-pull-request`    | Open a pull request with the changes using peter-evans/create-pull-request. Ignored when `check` is `true`.         | No       | `true`                                              |
+| `token`                  | Token used by peter-evans/create-pull-request to create the pull request. Ignored if `github-app-client-id` is set. | No       | `${{ github.token }}`                               |
+| `github-app-client-id`   | Client ID of a GitHub App used to generate a token for creating the pull request, instead of `token`.               | No       | (none)                                              |
+| `github-app-private-key` | Private key of the GitHub App identified by `github-app-client-id`.                                                 | No       | (none)                                              |
+| `branch`                 | Branch name used by peter-evans/create-pull-request.                                                                | No       | `bot/format-files`                                  |
+| `commit-message`         | Commit message used by peter-evans/create-pull-request.                                                             | No       | `style: format files`                               |
+| `title`                  | Pull request title used by peter-evans/create-pull-request.                                                         | No       | `style: format files`                               |
+| `body`                   | Pull request body used by peter-evans/create-pull-request.                                                          | No       | `Format YAML, Makefile, shell, and Markdown files.` |
 
 ## Outputs
 
-| Name                   | Description                                                               |
-| ------------------------ | ---------------------------------------------------------------------------- |
-| `changed`              | Whether any file was reformatted (write mode) or is not correctly formatted (check mode). |
-| `pull-request-number`  | Number of the pull request created with the formatting changes, if any.  |
-| `pull-request-url`     | URL of the pull request created with the formatting changes, if any.     |
+| Name                  | Description                                                                               |
+| --------------------- | ----------------------------------------------------------------------------------------- |
+| `changed`             | Whether any file was reformatted (write mode) or is not correctly formatted (check mode). |
+| `pull-request-number` | Number of the pull request created with the formatting changes, if any.                   |
+| `pull-request-url`    | URL of the pull request created with the formatting changes, if any.                      |
 
 ## Usage
 
