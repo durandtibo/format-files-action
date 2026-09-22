@@ -1,36 +1,62 @@
-name: "Format YAML"
-description: "Format YAML files (GitHub Actions workflows/actions) using Prettier"
+name: "Format Files"
+description: "Format YAML, Makefiles, shell scripts, and Markdown files using 'make format'"
 author: "Thibaut Durand"
 branding:
   icon: "align-left"
   color: "blue"
 
 inputs:
-  path:
-    description: "Path(s) to format, space-separated glob patterns"
-    required: false
-    default: ".github/**/*.yml .github/**/*.yaml"
-  prettier-version:
-    description: "Version (or dist-tag) of Prettier to use"
-    required: false
-    default: "latest"
   node-version:
-    description: "Version of Node.js to use"
+    description: "Version of Node.js to use (needed by prettier and markdownlint)"
     required: false
     default: "lts/*"
-  config-path:
-    description: "Path to a Prettier config file to use. Defaults to this action's own .prettierrc.yml"
-    required: false
-    default: ""
   check:
     description: "Check formatting without writing changes. Fails the action if any file is not formatted"
     required: false
     default: "false"
+  create-pull-request:
+    description: "Open a pull request with the formatting changes using peter-evans/create-pull-request. Ignored when 'check' is true"
+    required: false
+    default: "true"
+  token:
+    description: "Token used by peter-evans/create-pull-request to create the pull request. Ignored if 'github-app-client-id' is set"
+    required: false
+    default: ${{ github.token }}
+  github-app-client-id:
+    description: "Client ID of a GitHub App used to generate a token for creating the pull request, instead of 'token'"
+    required: false
+    default: ""
+  github-app-private-key:
+    description: "Private key of the GitHub App identified by 'github-app-client-id'"
+    required: false
+    default: ""
+  branch:
+    description: "Branch name used by peter-evans/create-pull-request"
+    required: false
+    default: "bot/format-files"
+  commit-message:
+    description: "Commit message used by peter-evans/create-pull-request"
+    required: false
+    default: "style: format files"
+  title:
+    description: "Pull request title used by peter-evans/create-pull-request"
+    required: false
+    default: "style: format files"
+  body:
+    description: "Pull request body used by peter-evans/create-pull-request"
+    required: false
+    default: "Format YAML, Makefile, shell, and Markdown files."
 
 outputs:
   changed:
     description: "Whether any file was reformatted (write mode) or is not correctly formatted (check mode)"
     value: ${{ steps.format.outputs.changed }}
+  pull-request-number:
+    description: "Number of the pull request created with the formatting changes, if any"
+    value: ${{ steps.create-pull-request.outputs.pull-request-number }}
+  pull-request-url:
+    description: "URL of the pull request created with the formatting changes, if any"
+    value: ${{ steps.create-pull-request.outputs.pull-request-url }}
 
 runs:
   using: "composite"
@@ -40,31 +66,43 @@ runs:
       with:
         node-version: ${{ inputs.node-version }}
 
-    - name: Format YAML files
+    - name: Format files
       id: format
       shell: bash
       env:
-        CONFIG_PATH: ${{ inputs.config-path || format('{0}/.prettierrc.yml', github.action_path) }}
-        PRETTIER_VERSION: ${{ inputs.prettier-version }}
-        PATTERNS: ${{ inputs.path }}
+        ACTION_PATH: ${{ github.action_path }}
         CHECK: ${{ inputs.check }}
       run: |
-        # shellcheck disable=SC2206 # PATTERNS is intentionally split into
-        # multiple glob-pattern arguments on unquoted whitespace.
-        patterns=($PATTERNS)
+        make --file="$ACTION_PATH/Makefile" format
 
-        if [ "$CHECK" = 'true' ]; then
-          if npx --yes prettier@"$PRETTIER_VERSION" --config "$CONFIG_PATH" --no-error-on-unmatched-pattern --check "${patterns[@]}"; then
-            echo 'changed=false' >>"$GITHUB_OUTPUT"
-          else
-            echo 'changed=true' >>"$GITHUB_OUTPUT"
+        if git diff --quiet; then
+          echo 'changed=false' >>"$GITHUB_OUTPUT"
+        else
+          echo 'changed=true' >>"$GITHUB_OUTPUT"
+          if [ "$CHECK" = 'true' ]; then
+            git checkout -- .
             exit 1
           fi
-        else
-          changed_files=$(npx --yes prettier@"$PRETTIER_VERSION" --config "$CONFIG_PATH" --no-error-on-unmatched-pattern --write --list-different "${patterns[@]}")
-          if [ -n "$changed_files" ]; then
-            echo 'changed=true' >>"$GITHUB_OUTPUT"
-          else
-            echo 'changed=false' >>"$GITHUB_OUTPUT"
-          fi
         fi
+
+    - name: Generate GitHub App token
+      id: app-token
+      if: inputs.check != 'true' && inputs.create-pull-request == 'true' && steps.format.outputs.changed == 'true' && inputs.github-app-client-id != '' && inputs.github-app-private-key != ''
+      uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # ratchet:actions/create-github-app-token@v3.2.0
+      with:
+        client-id: ${{ inputs.github-app-client-id }}
+        private-key: ${{ inputs.github-app-private-key }}
+        permission-contents: write
+        permission-pull-requests: write
+        permission-workflows: write
+
+    - name: Create pull request
+      id: create-pull-request
+      if: inputs.check != 'true' && inputs.create-pull-request == 'true' && steps.format.outputs.changed == 'true'
+      uses: peter-evans/create-pull-request@v8
+      with:
+        token: ${{ steps.app-token.outputs.token || inputs.token }}
+        branch: ${{ inputs.branch }}
+        commit-message: ${{ inputs.commit-message }}
+        title: ${{ inputs.title }}
+        body: ${{ inputs.body }}
