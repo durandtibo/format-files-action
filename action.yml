@@ -62,7 +62,7 @@ runs:
   using: "composite"
   steps:
     - name: Setup Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # ratchet:actions/setup-node@v4
       with:
         node-version: ${{ inputs.node-version }}
 
@@ -99,7 +99,7 @@ runs:
     - name: Create pull request
       id: create-pull-request
       if: inputs.check != 'true' && inputs.create-pull-request == 'true' && steps.format.outputs.changed == 'true'
-      uses: peter-evans/create-pull-request@v8
+      uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # ratchet:peter-evans/create-pull-request@v8
       with:
         token: ${{ steps.app-token.outputs.token || inputs.token }}
         branch: ${{ inputs.branch }}
