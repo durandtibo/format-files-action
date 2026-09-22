@@ -1,39 +1,39 @@
-name: 'Format YAML'
-description: 'Format YAML files (GitHub Actions workflows/actions) using Prettier'
-author: 'Thibaut Durand'
+name: "Format YAML"
+description: "Format YAML files (GitHub Actions workflows/actions) using Prettier"
+author: "Thibaut Durand"
 branding:
-  icon: 'align-left'
-  color: 'blue'
+  icon: "align-left"
+  color: "blue"
 
 inputs:
   path:
-    description: 'Path(s) to format, space-separated glob patterns'
+    description: "Path(s) to format, space-separated glob patterns"
     required: false
-    default: '.github/**/*.yml .github/**/*.yaml'
+    default: ".github/**/*.yml .github/**/*.yaml"
   prettier-version:
-    description: 'Version (or dist-tag) of Prettier to use'
+    description: "Version (or dist-tag) of Prettier to use"
     required: false
-    default: 'latest'
+    default: "latest"
   node-version:
-    description: 'Version of Node.js to use'
+    description: "Version of Node.js to use"
     required: false
-    default: 'lts/*'
+    default: "lts/*"
   config-path:
     description: "Path to a Prettier config file to use. Defaults to this action's own .prettierrc.yml"
     required: false
-    default: ''
+    default: ""
   check:
-    description: 'Check formatting without writing changes. Fails the action if any file is not formatted'
+    description: "Check formatting without writing changes. Fails the action if any file is not formatted"
     required: false
-    default: 'false'
+    default: "false"
 
 outputs:
   changed:
-    description: 'Whether any file was reformatted (write mode) or is not correctly formatted (check mode)'
+    description: "Whether any file was reformatted (write mode) or is not correctly formatted (check mode)"
     value: ${{ steps.format.outputs.changed }}
 
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
     - name: Setup Node.js
       uses: actions/setup-node@v4
