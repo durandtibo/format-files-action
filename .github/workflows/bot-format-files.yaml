@@ -1,0 +1,28 @@
+# Formats this repo's own YAML, Makefile, shell, and Markdown files weekly,
+# opening a pull request when anything drifted out of format.
+
+name: Format (bot)
+
+on:
+  schedule:
+    - cron: "0 6 * * 5" # Run every Friday at 6:00 AM UTC
+  workflow_dispatch: # to trigger manually
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Format files
+        uses: ./
+        with:
+          github-app-client-id: ${{ secrets.TIBOT_CLIENT_ID }}
+          github-app-private-key: ${{ secrets.TIBOT_APP_PRIVATE_KEY }}

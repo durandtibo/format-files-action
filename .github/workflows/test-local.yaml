@@ -1,0 +1,140 @@
+# Tests the local action (uses: ./) across Linux/macOS. Badly formatted YAML,
+# Makefile, shell, and Markdown fixtures are generated at runtime (not
+# committed) so the repo's own scheduled format bot never "fixes" them into
+# formatted, useless fixtures. Covers write mode (reformats + reports
+# changed=true, is idempotent), and check mode (fails and leaves the working
+# tree untouched on unformatted input, succeeds on already-formatted input).
+
+name: Test Local Action
+
+on:
+  workflow_call:
+  workflow_dispatch: # to trigger manually
+
+permissions:
+  contents: read
+
+jobs:
+  workflow-config:
+    runs-on: ubuntu-slim
+    outputs:
+      os_unix: ${{ steps.config.outputs.os_unix }}
+    steps:
+      - id: config
+        uses: durandtibo/workflow-config-action@8c406999ac8ac3cafe656c263759d8ddea3a4edb # ratchet:durandtibo/workflow-config-action@v0.2
+
+  format-write:
+    needs: workflow-config
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(needs.workflow-config.outputs.os_unix) }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
+
+      - name: Create badly formatted fixtures
+        shell: bash
+        run: |
+          mkdir -p tmp-format-test
+          printf 'foo:    bar\nbaz:  qux\n' >tmp-format-test/bad.yaml
+          # shellcheck disable=SC2016 # writing literal shell source as data, not expanding it here
+          printf '# bad shell\nfoo="bar"\nif [ "$foo" = "bar" ]; then\necho ok\nfi\n' >tmp-format-test/bad.sh
+          printf '#   heading\n\n*  item\n*   item2\n' >tmp-format-test/bad.md
+          printf 'all:\n\t\t@echo    hi\n' >bad.mk
+          git add -A
+          git -c user.name=test -c user.email=test@example.com commit -m 'test: add unformatted fixtures' --quiet
+
+      - name: Run format action
+        id: format
+        uses: ./
+        with:
+          create-pull-request: false
+
+      - name: Assert action reports changed=true
+        shell: bash
+        run: test "${{ steps.format.outputs.changed }}" = "true"
+
+      - name: Assert fixtures were reformatted
+        shell: bash
+        run: |
+          if git diff --quiet -- tmp-format-test bad.mk; then
+            echo "expected the fixtures to be reformatted, but found no diff"
+            exit 1
+          fi
+          git add -A
+          git -c user.name=test -c user.email=test@example.com commit -m 'test: reformatted fixtures' --quiet
+
+      - name: Run format action again (idempotency)
+        id: format-again
+        uses: ./
+        with:
+          create-pull-request: false
+
+      - name: Assert action reports changed=false
+        shell: bash
+        run: test "${{ steps.format-again.outputs.changed }}" = "false"
+
+  format-check:
+    needs: workflow-config
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(needs.workflow-config.outputs.os_unix) }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
+
+      - name: Create badly formatted fixture
+        shell: bash
+        run: |
+          printf 'foo:    bar\nbaz:  qux\n' >tmp-format-test.yaml
+          git add -A
+          git -c user.name=test -c user.email=test@example.com commit -m 'test: add unformatted fixture' --quiet
+
+      - name: Run format action in check mode
+        id: format
+        continue-on-error: true
+        uses: ./
+        with:
+          check: true
+          create-pull-request: false
+
+      - name: Assert action failed and reported changed=true
+        shell: bash
+        run: |
+          test "${{ steps.format.outcome }}" = "failure"
+          test "${{ steps.format.outputs.changed }}" = "true"
+
+      - name: Assert no changes were left on disk
+        shell: bash
+        run: git diff --quiet
+
+  format-check-clean:
+    needs: workflow-config
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(needs.workflow-config.outputs.os_unix) }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
+
+      - name: Run format action in check mode against an already-formatted repo
+        id: format
+        uses: ./
+        with:
+          check: true
+          create-pull-request: false
+
+      - name: Assert action succeeded and reported changed=false
+        shell: bash
+        run: |
+          test "${{ steps.format.outcome }}" = "success"
+          test "${{ steps.format.outputs.changed }}" = "false"
