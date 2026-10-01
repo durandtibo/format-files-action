@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/badge/license-BSD--3--Clause-blue)](LICENSE)
 [![Latest release](https://img.shields.io/github/v/tag/durandtibo/format-files-action?label=release)](https://github.com/durandtibo/format-files-action/tags)
 
-A composite GitHub Action that formats YAML, Makefile, shell, and Markdown files with `make format`
+A composite GitHub Action that formats YAML, Makefile, shell, TOML, and Markdown files with `make format`
 and, if anything changed, opens a pull request with the result.
 
 Point it at any checked-out repo — it doesn't need its own formatting config or tooling installed.
@@ -14,10 +14,10 @@ only needs `actions/checkout` before it.
 ## Why use it
 
 Keeping YAML, Makefiles, shell scripts, and Markdown consistently formatted usually means wiring up
-several separate tools (Prettier, mbake, shfmt, markdownlint, ...) in every repo and remembering to
+several separate tools (Prettier, mbake, shfmt, taplo, ...) in every repo and remembering to
 keep their versions and configs in sync. This action centralizes that:
 
-- One step formats all four file types, instead of one workflow step per tool.
+- One step formats all five file types, instead of one workflow step per tool.
 - Formatters are pinned and installed by the action itself — nothing to install in the caller.
 - It can run in **check mode** to fail CI on unformatted files without touching the working tree.
 - It can run in **write mode** and open a pull request with the changes, so formatting never gets
@@ -26,16 +26,23 @@ keep their versions and configs in sync. This action centralizes that:
 ## How it works
 
 1. Installs Node.js ([`actions/setup-node`](https://github.com/actions/setup-node)), needed by
-   Prettier and markdownlint.
+   Prettier (and by taplo on Linux).
 2. Runs `make --file="$GITHUB_ACTION_PATH/Makefile" format` against the caller's checkout. That
    target runs, in order:
    - [`format-yaml`](.make/yaml.mk) — Prettier
    - [`format-makefile`](.make/makefile.mk) — mbake
    - [`format-shell`](.make/shell.mk) — shfmt
+   - [`format-toml`](.make/toml.mk) — taplo
    - [`format-markdown`](.make/markdown.mk) — Prettier
 
-   Each tool is installed on demand (via Homebrew/apt/npm/pipx, depending on the tool and OS) if
-   it isn't already on the runner.
+   Each tool is installed on demand if it isn't already on the runner:
+
+   | Tool     | Linux                                    | macOS                     |
+   | -------- | ---------------------------------------- | ------------------------- |
+   | Prettier | `npm install -g prettier`                | `npm install -g prettier` |
+   | mbake    | `pipx install mbake` (or `pip3 install`) | `pipx install mbake`      |
+   | shfmt    | `go install`, else release binary        | `brew install shfmt`      |
+   | taplo    | `npm install -g @taplo/cli`              | `brew install taplo`      |
 
 3. Diffs the working tree with `git diff` to determine the `changed` output.
 4. **Check mode** (`check: true`): if anything changed, reverts it with `git checkout -- .` and
@@ -49,6 +56,25 @@ keep their versions and configs in sync. This action centralizes that:
      installation token via
      [`actions/create-github-app-token`](https://github.com/actions/create-github-app-token) and
      uses that, so the PR runs through normal CI/review.
+
+## What gets formatted
+
+| Type     | Tool     | Files                                        |
+| -------- | -------- | -------------------------------------------- |
+| YAML     | Prettier | `**/*.yml`, `**/*.yaml`                      |
+| Makefile | mbake    | `Makefile` and `*.mk` in the repository root |
+| Shell    | shfmt    | `*.sh`, found recursively                    |
+| TOML     | taplo    | `*.toml`, found recursively                  |
+| Markdown | Prettier | `**/*.md`                                    |
+
+Notes:
+
+- A `.make/` directory is skipped by the shell and TOML formatters (it is treated as a vendored
+  shared-Makefiles subtree). Prettier respects the caller's own `.prettierignore`/`.gitignore`
+  conventions, so use those to exclude paths such as `node_modules`.
+- Only the formatting targets run; the linters in the Makefile (`make lint`) are not part of the
+  action.
+- Linux and macOS runners are supported (tested in CI); Windows runners are not.
 
 ## Requirements
 
@@ -172,6 +198,16 @@ jobs:
           github-app-client-id: ${{ secrets.APP_CLIENT_ID }}
           github-app-private-key: ${{ secrets.APP_PRIVATE_KEY }}
 ```
+
+## Development
+
+The repository's own `Makefile` includes the shared targets in [`.make/`](.make). Run `make help`
+to list them, and `make format` / `make lint` to format or lint locally. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow, [SECURITY.md](SECURITY.md) for reporting
+vulnerabilities, and the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+Workflows in [`.github/workflows`](.github/workflows) test the action on Linux and macOS in write
+mode (including idempotency) and check mode, and run it weekly against this repo.
 
 ## License
 
