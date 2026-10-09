@@ -50,7 +50,7 @@ jobs:
 
       - name: Run format action
         id: format
-        uses: durandtibo/format-files-action@d38cabe9c65c3a3c6f58a5d22bbb66ba59fb8619 # ratchet:durandtibo/format-files-action@v0.0.1
+        uses: durandtibo/format-files-action@1c50829b34a99c23bb309a56546722f594c2996b # ratchet:durandtibo/format-files-action@v0.0.2
         with:
           create-pull-request: false
 
@@ -70,7 +70,7 @@ jobs:
 
       - name: Run format action again (idempotency)
         id: format-again
-        uses: durandtibo/format-files-action@d38cabe9c65c3a3c6f58a5d22bbb66ba59fb8619 # ratchet:durandtibo/format-files-action@v0.0.1
+        uses: durandtibo/format-files-action@1c50829b34a99c23bb309a56546722f594c2996b # ratchet:durandtibo/format-files-action@v0.0.2
         with:
           create-pull-request: false
 
@@ -100,7 +100,7 @@ jobs:
       - name: Run format action in check mode
         id: format
         continue-on-error: true
-        uses: durandtibo/format-files-action@d38cabe9c65c3a3c6f58a5d22bbb66ba59fb8619 # ratchet:durandtibo/format-files-action@v0.0.1
+        uses: durandtibo/format-files-action@1c50829b34a99c23bb309a56546722f594c2996b # ratchet:durandtibo/format-files-action@v0.0.2
         with:
           check: true
           create-pull-request: false
@@ -129,7 +129,7 @@ jobs:
 
       - name: Run format action in check mode against an already-formatted repo
         id: format
-        uses: durandtibo/format-files-action@d38cabe9c65c3a3c6f58a5d22bbb66ba59fb8619 # ratchet:durandtibo/format-files-action@v0.0.1
+        uses: durandtibo/format-files-action@1c50829b34a99c23bb309a56546722f594c2996b # ratchet:durandtibo/format-files-action@v0.0.2
         with:
           check: true
           create-pull-request: false
