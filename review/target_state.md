@@ -7,19 +7,20 @@ Breaking changes are accepted. The future state matters more than the current on
 
 These are the properties the action must have. Section 4 lists the changes that make them true.
 
-| #   | Property           | Definition                                                                                                                                         |
-| --- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P1  | **Purpose**        | Format YAML, Makefile, shell, TOML and Markdown files of the caller's checkout with one step.                                                      |
-| P2  | **Zero setup**     | The caller needs only `actions/checkout`. No config file, no tool installed. It works in any repo, not just this one.                              |
-| P3  | **Two modes**      | _Write_ (default): reformat, then open a PR. _Check_: fail on unformatted files, change nothing, open no PR.                                       |
-| P4  | **Deterministic**  | Same input and same action version give the same output. Every formatter is pinned, so the action's version is the only thing that changes output. |
-| P5  | **Idempotent**     | A second run on the output of the first reports `changed=false`.                                                                                   |
-| P6  | **Fast**           | Install only the tools whose file types exist in the repo. Install with no package-manager update and no `sudo`. One Prettier run.                 |
-| P7  | **Safe**           | Inputs go through `env:`. Third-party actions are pinned to SHAs. Least privilege. Check mode never writes. No `sudo`. Downloads are verified.     |
-| P8  | **Portable**       | Linux and macOS runners. No GNU-only or BSD-only flags. Windows is out of scope.                                                                   |
-| P9  | **Observable**     | Outputs `changed`, `pull-request-number`, `pull-request-url`. In check mode, the log and annotations list the files that are not formatted.        |
-| P10 | **Simple**         | Few inputs, one script path, one Makefile, tested end to end by CI. Docs, defaults and behaviour agree.                                            |
-| P11 | **Immutable pins** | Consumers pin an exact release tag or SHA. No floating tags.                                                                                       |
+| #   | Property           | Definition                                                                                                                                                                                                                           |
+| --- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| P1  | **Purpose**        | Format YAML, Makefile, shell, TOML and Markdown files of the caller's checkout with one step.                                                                                                                                        |
+| P2  | **Zero setup**     | The caller needs only `actions/checkout`. No config file, no tool installed. It works in any repo, not just this one.                                                                                                                |
+| P3  | **Two modes**      | _Write_ (default): reformat, then open a PR. _Check_: fail on unformatted files, change nothing, open no PR.                                                                                                                         |
+| P4  | **Deterministic**  | Same input and same action version give the same output. Every formatter is pinned, so the action's version is the only thing that changes output.                                                                                   |
+| P5  | **Idempotent**     | A second run on the output of the first reports `changed=false`.                                                                                                                                                                     |
+| P6  | **Fast**           | Install only the tools whose file types exist in the repo. Install with no package-manager update and no `sudo`. One Prettier run.                                                                                                   |
+| P7  | **Safe**           | Inputs go through `env:`. Third-party actions are pinned to SHAs. Least privilege. Check mode never writes. No `sudo`. Downloads are verified.                                                                                       |
+| P8  | **Portable**       | Linux and macOS runners. No GNU-only or BSD-only flags. Windows is out of scope.                                                                                                                                                     |
+| P9  | **Observable**     | Outputs `changed`, `pull-request-number`, `pull-request-url`. In check mode, the log and annotations list the files that are not formatted.                                                                                          |
+| P10 | **Simple**         | Few inputs, one script path, one Makefile, tested end to end by CI. Docs, defaults and behaviour agree.                                                                                                                              |
+| P11 | **Immutable pins** | Consumers pin an exact release tag or SHA. No floating tags.                                                                                                                                                                         |
+| P12 | **Fails loudly**   | Every failure stops the action with a non-zero exit, an `::error` annotation and a message that says what failed, why, and where to start fixing it. Nothing fails silently, and nothing is reported as success when it was skipped. |
 
 ## 2. Review of the current state
 
@@ -37,17 +38,18 @@ These are the properties the action must have. Section 4 lists the changes that 
 
 ### 2.2 Weaknesses
 
-| #   | Finding                                                                                                                                                                                                                                                                              | Violates |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
-| W1  | **The action reuses the developer Makefile.** It parses 12 `.mk` files, including `uv.mk`, `git.mk` and `github.mk`, which the action never uses. A shared-file sync (`bot-sync-shared-makefile`) can change consumer behaviour silently.                                            | P4, P10  |
-| W2  | **Every tool is installed even if unused.** A repo with no `.toml` still installs taplo. `setup-node` always runs, though hosted runners ship Node.                                                                                                                                  | P6       |
-| W3  | **Install paths are slow and risky.** `sudo apt-get update`, `go install` then `sudo cp`, `curl` to a fixed `/tmp/<tool>` then `sudo mv`, `brew install` (runs `brew update`), `pip3 --break-system-packages`. No checksum on downloaded binaries.                                   | P6, P7   |
-| W4  | **Prettier runs twice** (YAML, then Markdown) with two startups.                                                                                                                                                                                                                     | P6       |
-| W5  | **Scope is inconsistent.** Prettier formats `.make/` and `.github/`, while shell and TOML skip `.make/`. Shell files are found only by `*.sh`, so extensionless scripts with a shebang are skipped. Makefiles are only the root `Makefile` and root `*.mk`.                          | P1, P10  |
-| W6  | **Check-mode UX is poor.** The failure is `exit 1` with no list of files and no annotation. The caller must read the formatter log.                                                                                                                                                  | P9       |
-| W7  | **Missing PR hygiene inputs.** The branch is never deleted after merge (`delete-branch`). There is no way to run only some formatters.                                                                                                                                               | P6, P10  |
-| W8  | **Test gaps.** Check mode is tested with YAML only. Write mode has no TOML fixture. No test for: consumer repo without `.make/`, no matching files, untracked output, extensionless shell script, `.prettierignore`. The PR-creation path is untested (cannot be, locally; see 4.7). | P10      |
-| W9  | **Duplicated test workflow.** `nightly-test-released.yaml` copies `ci-action.yaml` job for job. A new test must be added twice, and the copies drift.                                                                                                                                | P10      |
+| #   | Finding                                                                                                                                                                                                                                                                                                                           | Violates |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| W1  | **The action reuses the developer Makefile.** It parses 12 `.mk` files, including `uv.mk`, `git.mk` and `github.mk`, which the action never uses. A shared-file sync (`bot-sync-shared-makefile`) can change consumer behaviour silently.                                                                                         | P4, P10  |
+| W2  | **Every tool is installed even if unused.** A repo with no `.toml` still installs taplo. `setup-node` always runs, though hosted runners ship Node.                                                                                                                                                                               | P6       |
+| W3  | **Install paths are slow and risky.** `sudo apt-get update`, `go install` then `sudo cp`, `curl` to a fixed `/tmp/<tool>` then `sudo mv`, `brew install` (runs `brew update`), `pip3 --break-system-packages`. No checksum on downloaded binaries.                                                                                | P6, P7   |
+| W4  | **Prettier runs twice** (YAML, then Markdown) with two startups.                                                                                                                                                                                                                                                                  | P6       |
+| W5  | **Scope is inconsistent.** Prettier formats `.make/` and `.github/`, while shell and TOML skip `.make/`. Shell files are found only by `*.sh`, so extensionless scripts with a shebang are skipped. Makefiles are only the root `Makefile` and root `*.mk`.                                                                       | P1, P10  |
+| W6  | **Check-mode UX is poor.** The failure is `exit 1` with no list of files and no annotation. The caller must read the formatter log.                                                                                                                                                                                               | P9       |
+| W7  | **Missing PR hygiene inputs.** The branch is never deleted after merge (`delete-branch`). There is no way to run only some formatters.                                                                                                                                                                                            | P6, P10  |
+| W8  | **Test gaps.** Check mode is tested with YAML only. Write mode has no TOML fixture. No test for: consumer repo without `.make/`, no matching files, untracked output, extensionless shell script, `.prettierignore`. The PR-creation path is untested (cannot be, locally; see 4.7).                                              | P10      |
+| W9  | **Duplicated test workflow.** `nightly-test-released.yaml` copies `ci-action.yaml` job for job. A new test must be added twice, and the copies drift.                                                                                                                                                                             | P10      |
+| W10 | **Failures are silent or cryptic.** `show-tool` only warns (`⚠️ x is not on the PATH`) and the build goes on. Prettier output is captured, echoed late, and errors are filtered by `grep`. A failed download or install surfaces as a raw `curl`/`npm` error with no hint. Check mode ends with a bare `exit 1`. No step summary. | P9, P12  |
 
 ### 2.3 What is already good (keep)
 
@@ -182,20 +184,24 @@ Makefile               # dev entry point: install-tools, format, lint (uses .mak
 - **Run the tests in a consumer-like directory** (fixes B2). Use a fresh `git init` dir under `$RUNNER_TEMP` as the working directory, not the repo checkout. The action path stays this repo. This alone would have caught B1.
 - **New and extended cases**, one behaviour per job or step:
 
-| Case                                                      | Mode  | Expect                                                       |
-| --------------------------------------------------------- | ----- | ------------------------------------------------------------ |
-| Each of YAML, Makefile, shell, TOML, Markdown unformatted | write | file reformatted, `changed=true`                             |
-| Second run                                                | write | `changed=false` (idempotent)                                 |
-| Each type unformatted                                     | check | fails, `changed=true`, tree untouched, file named in the log |
-| All formatted                                             | check | success, `changed=false`                                     |
-| Empty repo (no matching files)                            | both  | success, `changed=false`, no tool installed                  |
-| Extensionless shell script with shebang                   | write | reformatted                                                  |
-| File listed in `.prettierignore` / `.gitignore`           | write | untouched                                                    |
-| Untracked new unformatted file                            | check | fails                                                        |
-| `tools: toml` only                                        | write | only TOML reformatted                                        |
-| Invalid `check` value                                     | -     | fails with a clear message                                   |
-| Run from a repo with no `.make/`                          | write | works (regression for B1; fails on `main` today)             |
-| Tool version is the pinned one                            | -     | `prettier --version` etc. printed in the log match the pins  |
+| Case                                                      | Mode            | Expect                                                                    |
+| --------------------------------------------------------- | --------------- | ------------------------------------------------------------------------- |
+| Each of YAML, Makefile, shell, TOML, Markdown unformatted | write           | file reformatted, `changed=true`                                          |
+| Second run                                                | write           | `changed=false` (idempotent)                                              |
+| Each type unformatted                                     | check           | fails, `changed=true`, tree untouched, file named in the log              |
+| All formatted                                             | check           | success, `changed=false`                                                  |
+| Empty repo (no matching files)                            | both            | success, `changed=false`, no tool installed                               |
+| Extensionless shell script with shebang                   | write           | reformatted                                                               |
+| File listed in `.prettierignore` / `.gitignore`           | write           | untouched                                                                 |
+| Untracked new unformatted file                            | check           | fails                                                                     |
+| `tools: toml` only                                        | write           | only TOML reformatted                                                     |
+| Invalid `check` value                                     | -               | fails with a clear message                                                |
+| Prettier syntax error in a YAML file                      | write and check | fails with exit 65, names the file, no `changed` output, no PR            |
+| Unknown value in `tools`                                  | -               | fails before any install, lists allowed values                            |
+| Checksum mismatch (tampered pin)                          | -               | fails with exit 70 and the install hint                                   |
+| Failure messages                                          | all             | log contains the `::error` title, the cause and the "where to start" line |
+| Run from a repo with no `.make/`                          | write           | works (regression for B1; fails on `main` today)                          |
+| Tool version is the pinned one                            | -               | `prettier --version` etc. printed in the log match the pins               |
 
 - **PR creation** cannot run against this repo in CI without side effects. Cover it by the weekly `bot-format-files.yaml` (uses the released action) and say so in the README and PR descriptions. Do not claim it is tested by the matrix.
 - `ci-format.yaml` runs `make lint-*` as now, plus lints `action/Makefile` with checkmake and `action.yml` with actionlint's composite checks where supported.
@@ -208,7 +214,7 @@ Makefile               # dev entry point: install-tools, format, lint (uses .mak
 - Inputs and outputs tables regenerated from `action.yml` in the same PR (no drift).
 - State plainly: the default `GITHUB_TOKEN` PR does not trigger CI; "Allow GitHub Actions to create and approve pull requests" must be enabled in the repo settings.
 - Document `tools`, the scope rule (decision 8), and how to exclude files (`.prettierignore`, `.gitignore`).
-- Document the migration (4.8).
+- Document the migration (4.9).
 
 ### 4.7 Security
 
@@ -218,7 +224,40 @@ Makefile               # dev entry point: install-tools, format, lint (uses .mak
 - Inputs are never interpolated in `run:`. `tools` is validated against an allow-list in the Makefile before use.
 - The App token keeps the minimal permissions. Keep `permission-workflows: write` only because the action may reformat `.github/workflows/*.yaml`. Document why.
 
-### 4.8 Breaking changes and migration
+### 4.8 Failing loudly (P12)
+
+Principle: the first red line in the log must tell the user what happened and what to do next. A failure is never swallowed, downgraded to a warning, or reported as `changed=false`.
+
+**Error contract.** Every failure goes through one Makefile macro and one shell helper that print, in this order:
+
+1. `::error title=<short title>::<what failed>` (GitHub annotation, visible on the run summary page).
+2. **Cause**: the command and its exit code, plus the last lines of its output.
+3. **Where to start**: one concrete next step (a command to run locally, an input to change, a doc anchor).
+
+**Failure classes** (each has a distinct exit code and a message):
+
+| Class                     | Example                                            | Message must say                                                                                 | Exit                       |
+| ------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------ | -------------------------- |
+| Invalid input             | `check: yes`, unknown value in `tools`             | The input, the received value, the allowed values.                                               | 64                         |
+| Missing prerequisite      | no `git`, no `node`, not a git repo for write mode | The missing tool and how to provide it (`actions/setup-node`, `actions/checkout`).               | 69                         |
+| Tool install failed       | download 404, checksum mismatch, `npm` error       | The tool, pinned version, URL or package, and "run `make --file=<path> install-<tool>`".         | 70                         |
+| Formatter crashed         | Prettier syntax error in `bad.yaml`                | The tool, the file and line it printed, and "fix the syntax, the formatter cannot run".          | 65                         |
+| Unformatted files (check) | `check: true` with drift                           | The list of files, one annotation per file, and "run `make format` or `<action>` in write mode". | 1                          |
+| PR creation failed        | token lacks permission, Actions cannot create PRs  | The permission or repo setting to change (see README), the token source used.                    | from `create-pull-request` |
+
+Rules:
+
+- **No silent skips.** Skipping a type because it has no files is logged (`no toml files, skipping`). Skipping because of an error is a failure.
+- **No warning where a failure is meant.** `show-tool` fails when the tool is not on `PATH` after install.
+- **Never swallow output.** Formatter output streams live to the log, grouped per tool with `::group::`. Remove the `grep "No files matching"` filter (B7).
+- **Errors distinguish "your files" from "the action".** Unformatted files and syntax errors in the caller's files are the caller's to fix. Install and prerequisite failures say so and point at the action's issue tracker with the action version and runner OS/arch printed.
+- **Fail early.** Validate inputs and prerequisites before any install or write, so a typo fails in seconds.
+- **`changed` is only set when known.** On a crash it is unset, never `false`.
+- **Step summary.** Write a short table to `$GITHUB_STEP_SUMMARY`: mode, tools run or skipped, files changed or unformatted, action version, tool versions. On failure it also holds the "where to start" text.
+- **Check-mode failure text** includes the exact reproduction: `Run 'make format' locally, or run this action without 'check' to open a pull request.`
+- **README** gets a "Troubleshooting" table mapping each class and message to its cause and fix.
+
+### 4.9 Breaking changes and migration
 
 | Change                                                  | Impact                                                                                        | Migration                                              |
 | ------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
@@ -239,6 +278,7 @@ One logical change per PR, in this order (each branched from an up-to-date `main
 2. `docs/fix-readme-and-defaults` — B4, B5 (README `@v1`, defaults, TOML in body and description).
 3. `refactor/self-contained-action-makefile` — decision 1, 4, 5, 6, 8: `action/Makefile`, pinned and verified installs, detection, one Prettier run, shell shebang support.
 4. `feat/check-mode-without-writes` — decision 2 and 3, annotations (W6, B6, B7).
+   4b. `feat/fail-loudly` — error contract, exit codes, step summary, troubleshooting docs (W10, P12).
 5. `feat/tools-input` — `tools` input and `delete-branch` (W7).
 6. `refactor/remove-node-setup` — decision 7.
 7. `test/extend-action-tests` — the table in 4.5 and the dedupe of the nightly workflow (W8, W9).
