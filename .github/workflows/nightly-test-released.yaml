@@ -1,36 +1,31 @@
-# Tests the local action (uses: ./) across Linux/macOS. Badly formatted YAML,
-# Makefile, shell, and Markdown fixtures are generated at runtime (not
-# committed) so the repo's own scheduled format bot never "fixes" them into
-# formatted, useless fixtures. Covers write mode (reformats + reports
-# changed=true, is idempotent), and check mode (fails and leaves the working
-# tree untouched on unformatted input, succeeds on already-formatted input).
+# Workflow testing the latest released action (durandtibo/format-files-action@v0.0.2), to catch
+# regressions in what consumers pick up, on multiple operating systems. It mirrors the tests of
+# ci-action.yaml, which tests the current checkout instead. Update the pinned release below (and
+# this comment) when a new version is released.
 
-name: Test Local Action
-
+name: Test Released Action
 on:
   workflow_call:
-  workflow_dispatch: # to trigger manually
+    inputs:
+      test-matrix:
+        description: "JSON test matrix from lib-get-test-matrix.yaml, loaded once by the caller"
+        required: true
+        type: string
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
-  workflow-config:
-    runs-on: ubuntu-slim
-    outputs:
-      os_unix: ${{ steps.config.outputs.os_unix }}
-    steps:
-      - id: config
-        uses: durandtibo/workflow-config-action@8c406999ac8ac3cafe656c263759d8ddea3a4edb # ratchet:durandtibo/workflow-config-action@v0.2
-
   format-write:
-    needs: workflow-config
-    strategy:
-      fail-fast: false
-      matrix:
-        os: ${{ fromJSON(needs.workflow-config.outputs.os_unix) }}
+    permissions:
+      contents: read
     runs-on: ${{ matrix.os }}
     timeout-minutes: 5
+    strategy:
+      max-parallel: 8
+      fail-fast: false
+      matrix:
+        os: ${{ fromJson(inputs.test-matrix).os_matrix }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
@@ -49,13 +44,15 @@ jobs:
 
       - name: Run format action
         id: format
-        uses: ./
+        uses: durandtibo/format-files-action@1c50829b34a99c23bb309a56546722f594c2996b # ratchet:durandtibo/format-files-action@v0.0.2
         with:
           create-pull-request: false
 
       - name: Assert action reports changed=true
         shell: bash
-        run: test "${{ steps.format.outputs.changed }}" = "true"
+        env:
+          CHANGED: ${{ steps.format.outputs.changed }}
+        run: test "$CHANGED" = "true"
 
       - name: Assert fixtures were reformatted
         shell: bash
@@ -69,22 +66,27 @@ jobs:
 
       - name: Run format action again (idempotency)
         id: format-again
-        uses: ./
+        uses: durandtibo/format-files-action@1c50829b34a99c23bb309a56546722f594c2996b # ratchet:durandtibo/format-files-action@v0.0.2
         with:
           create-pull-request: false
 
       - name: Assert action reports changed=false
         shell: bash
-        run: test "${{ steps.format-again.outputs.changed }}" = "false"
+        env:
+          CHANGED: ${{ steps.format-again.outputs.changed }}
+        run: test "$CHANGED" = "false"
 
   format-check:
-    needs: workflow-config
-    strategy:
-      fail-fast: false
-      matrix:
-        os: ${{ fromJSON(needs.workflow-config.outputs.os_unix) }}
+    permissions:
+      contents: read
     runs-on: ${{ matrix.os }}
     timeout-minutes: 5
+    strategy:
+      max-parallel: 8
+      fail-fast: false
+      matrix:
+        os: ${{ fromJson(inputs.test-matrix).os_matrix }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
@@ -96,45 +98,55 @@ jobs:
           git add -A
           git -c user.name=test -c user.email=test@example.com commit -m 'test: add unformatted fixture' --quiet
 
+      # The error annotation of this step is expected: the step must fail
       - name: Run format action in check mode
         id: format
         continue-on-error: true
-        uses: ./
+        uses: durandtibo/format-files-action@1c50829b34a99c23bb309a56546722f594c2996b # ratchet:durandtibo/format-files-action@v0.0.2
         with:
           check: true
           create-pull-request: false
 
       - name: Assert action failed and reported changed=true
         shell: bash
+        env:
+          OUTCOME: ${{ steps.format.outcome }}
+          CHANGED: ${{ steps.format.outputs.changed }}
         run: |
-          test "${{ steps.format.outcome }}" = "failure"
-          test "${{ steps.format.outputs.changed }}" = "true"
+          test "$OUTCOME" = "failure"
+          test "$CHANGED" = "true"
 
       - name: Assert no changes were left on disk
         shell: bash
         run: git diff --quiet
 
   format-check-clean:
-    needs: workflow-config
-    strategy:
-      fail-fast: false
-      matrix:
-        os: ${{ fromJSON(needs.workflow-config.outputs.os_unix) }}
+    permissions:
+      contents: read
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
+    strategy:
+      max-parallel: 8
+      fail-fast: false
+      matrix:
+        os: ${{ fromJson(inputs.test-matrix).os_matrix }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
 
       - name: Run format action in check mode against an already-formatted repo
         id: format
-        uses: ./
+        uses: durandtibo/format-files-action@1c50829b34a99c23bb309a56546722f594c2996b # ratchet:durandtibo/format-files-action@v0.0.2
         with:
           check: true
           create-pull-request: false
 
       - name: Assert action succeeded and reported changed=false
         shell: bash
+        env:
+          OUTCOME: ${{ steps.format.outcome }}
+          CHANGED: ${{ steps.format.outputs.changed }}
         run: |
-          test "${{ steps.format.outcome }}" = "success"
-          test "${{ steps.format.outputs.changed }}" = "false"
+          test "$OUTCOME" = "success"
+          test "$CHANGED" = "false"
