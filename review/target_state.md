@@ -1,0 +1,257 @@
+# Target state of `format-files-action`
+
+Review date: 2026-11-15. Scope: `action.yml`, `Makefile`, `.make/`, workflows, `README.md`.
+Breaking changes are accepted. The future state matters more than the current one.
+
+## 1. Properties of the action
+
+These are the properties the action must have. Section 4 lists the changes that make them true.
+
+| #   | Property           | Definition                                                                                                                                         |
+| --- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P1  | **Purpose**        | Format YAML, Makefile, shell, TOML and Markdown files of the caller's checkout with one step.                                                      |
+| P2  | **Zero setup**     | The caller needs only `actions/checkout`. No config file, no tool installed. It works in any repo, not just this one.                              |
+| P3  | **Two modes**      | _Write_ (default): reformat, then open a PR. _Check_: fail on unformatted files, change nothing, open no PR.                                       |
+| P4  | **Deterministic**  | Same input and same action version give the same output. Every formatter is pinned, so the action's version is the only thing that changes output. |
+| P5  | **Idempotent**     | A second run on the output of the first reports `changed=false`.                                                                                   |
+| P6  | **Fast**           | Install only the tools whose file types exist in the repo. Install with no package-manager update and no `sudo`. One Prettier run.                 |
+| P7  | **Safe**           | Inputs go through `env:`. Third-party actions are pinned to SHAs. Least privilege. Check mode never writes. No `sudo`. Downloads are verified.     |
+| P8  | **Portable**       | Linux and macOS runners. No GNU-only or BSD-only flags. Windows is out of scope.                                                                   |
+| P9  | **Observable**     | Outputs `changed`, `pull-request-number`, `pull-request-url`. In check mode, the log and annotations list the files that are not formatted.        |
+| P10 | **Simple**         | Few inputs, one script path, one Makefile, tested end to end by CI. Docs, defaults and behaviour agree.                                            |
+| P11 | **Immutable pins** | Consumers pin an exact release tag or SHA. No floating tags.                                                                                       |
+
+## 2. Review of the current state
+
+### 2.1 Bugs and contradictions (fix first)
+
+| #   | Finding                                                                                                                                                                                                                                                                                                                                                            | Violates |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
+| B1  | **The action is broken outside this repo.** `Makefile` does `include .make/help.mk`, which resolves against the _current directory_, not the Makefile's directory. I checked: running `make --file=<action>/Makefile` in a repo without `.make/` fails with `.make/help.mk: No such file or directory`. The README promises "carries its own `Makefile`/`.make/`". | P1, P2   |
+| B2  | **CI cannot see B1.** `ci-action.yaml` and `nightly-test-released.yaml` run the action on a checkout of this repo, which has its own `.make/`. No test uses a consumer-like repo.                                                                                                                                                                                  | P10      |
+| B3  | **README says tools are "pinned". They are not.** Prettier, mbake and taplo install at `latest`, and shfmt via `go install ...@latest`. A new Prettier release changes formatting of every consumer with no change in this action. The bot PRs then churn.                                                                                                         | P4       |
+| B4  | **README examples use `@v1`**, a floating tag. The repo policy says releases are exact tags only, and `v1` does not exist.                                                                                                                                                                                                                                         | P11      |
+| B5  | **Defaults use conventional-commit prefixes** (`style: format files`), against the repo's own Git rules. The default `body` omits TOML. `description` in `action.yml` omits TOML. `node-version` says it is needed by markdownlint, which the action never runs.                                                                                                   | P10      |
+| B6  | **Change detection ignores untracked files** (`git diff --quiet`) and needs a git repo. Check mode "reverts" by `git checkout -- .`, so it _does_ write to the tree before reverting.                                                                                                                                                                              | P3, P7   |
+| B7  | **Prettier errors are matched by grepping its output** for `No files matching the pattern`. Prettier has `--no-error-on-unmatched-pattern`.                                                                                                                                                                                                                        | P10      |
+
+### 2.2 Weaknesses
+
+| #   | Finding                                                                                                                                                                                                                                                                              | Violates |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
+| W1  | **The action reuses the developer Makefile.** It parses 12 `.mk` files, including `uv.mk`, `git.mk` and `github.mk`, which the action never uses. A shared-file sync (`bot-sync-shared-makefile`) can change consumer behaviour silently.                                            | P4, P10  |
+| W2  | **Every tool is installed even if unused.** A repo with no `.toml` still installs taplo. `setup-node` always runs, though hosted runners ship Node.                                                                                                                                  | P6       |
+| W3  | **Install paths are slow and risky.** `sudo apt-get update`, `go install` then `sudo cp`, `curl` to a fixed `/tmp/<tool>` then `sudo mv`, `brew install` (runs `brew update`), `pip3 --break-system-packages`. No checksum on downloaded binaries.                                   | P6, P7   |
+| W4  | **Prettier runs twice** (YAML, then Markdown) with two startups.                                                                                                                                                                                                                     | P6       |
+| W5  | **Scope is inconsistent.** Prettier formats `.make/` and `.github/`, while shell and TOML skip `.make/`. Shell files are found only by `*.sh`, so extensionless scripts with a shebang are skipped. Makefiles are only the root `Makefile` and root `*.mk`.                          | P1, P10  |
+| W6  | **Check-mode UX is poor.** The failure is `exit 1` with no list of files and no annotation. The caller must read the formatter log.                                                                                                                                                  | P9       |
+| W7  | **Missing PR hygiene inputs.** The branch is never deleted after merge (`delete-branch`). There is no way to run only some formatters.                                                                                                                                               | P6, P10  |
+| W8  | **Test gaps.** Check mode is tested with YAML only. Write mode has no TOML fixture. No test for: consumer repo without `.make/`, no matching files, untracked output, extensionless shell script, `.prettierignore`. The PR-creation path is untested (cannot be, locally; see 4.7). | P10      |
+| W9  | **Duplicated test workflow.** `nightly-test-released.yaml` copies `ci-action.yaml` job for job. A new test must be added twice, and the copies drift.                                                                                                                                | P10      |
+
+### 2.3 What is already good (keep)
+
+- Inputs pass through `env:`. Actions are pinned to SHAs with ratchet comments. Every `run:` sets `shell: bash`.
+- The app token is generated only when a PR will be created, with minimal permissions.
+- `changed` and the PR outputs are a good, small interface.
+- Fixtures are generated at runtime, so the format bot never "fixes" them.
+- The matrix of OSes comes from one external place.
+
+## 3. Design decisions
+
+1. **The action gets its own small Makefile, `action/Makefile`** (or `format.mk`). It does not include the developer Makefile.
+   - The path is anchored with `$(dir $(lastword $(MAKEFILE_LIST)))`, so it works from any directory (fixes B1).
+   - The root `Makefile` and `.make/` stay what they are: the dev tooling of this repo. `.make/` is not edited (CLAUDE.md).
+   - The action Makefile includes only what it needs. For the shared pieces (`prettier.mk`, `tool-info.mk`, `yaml.mk`, `markdown.mk` ...) there are two options. Option A: include them by an anchored path. Option B: stop depending on them and put the format logic in one self-contained file. **Recommended: B.** The action has five formatters, and install and format logic is about 100 lines. This removes W1 and the sync risk, and it allows the single Prettier run (W4). The `.make/` files are then used only by the repo's own `make lint`.
+2. **Check mode uses each tool's check flag, not "write then revert"** (fixes B6, W6): `prettier --check`, `shfmt -d`/`-l`, `taplo format --check`, `mbake format --check`. Nothing is written, no git is needed, and the unformatted files are listed.
+3. **Write mode keeps the git diff**, but with `git status --porcelain`, so untracked files count. This is what `create-pull-request` itself sees.
+4. **Pinned tool versions** as Makefile variables (`PRETTIER_VERSION`, `SHFMT_VERSION`, `TAPLO_VERSION`, `MBAKE_VERSION`), updated by Dependabot-style bumps or the bot. Output depends only on the action tag (P4).
+5. **Install by release binary into a user directory, no `sudo`, no brew, no apt.**
+   - `$(HOME)/.cache/format-files-action/bin` is prepended to `PATH` inside the Makefile.
+   - shfmt and taplo: pinned GitHub release binary for `Linux|Darwin` × `x86_64|arm64`, checksum-verified, `mktemp` for downloads.
+   - Prettier: `npm install --prefix <cache> prettier@$(PRETTIER_VERSION)`, using the Node preinstalled on hosted runners.
+   - mbake: `pipx`/`uv tool install mbake==$(MBAKE_VERSION)`. Preinstalled `pipx` exists on hosted runners.
+6. **Detect before installing.** For each type, `git ls-files`-style detection (including untracked, respecting `.gitignore`) decides whether the tool is installed and run. No `.toml` means no taplo (P6).
+7. **Drop `setup-node` and the `node-version` input.** Hosted runners have Node. A self-hosted runner without Node gets a clear error from the Makefile (`node is required`). This is breaking but removes a step on every run. If you prefer to keep it, make it opt-in (`node-version` default empty, step skipped when empty).
+8. **One scope rule.** Format tracked and untracked non-ignored files. Exclude vendored `.make/` for _all_ tools or for none. **Recommended: none excluded by the action**, and consumers use `.prettierignore`. A `.make/` dir in a consumer is the consumer's own files. This drops the special-casing in README notes.
+
+## 4. Target state
+
+### 4.1 Interface (`action.yml`)
+
+Inputs (breaking changes marked):
+
+| Name                     | Default                                                  | Change                                                                                                      |
+| ------------------------ | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `check`                  | `false`                                                  | Unchanged. Validate the value: only `true`/`false`, else fail with a clear message.                         |
+| `tools`                  | `all`                                                    | **New.** Space-separated subset: `yaml makefile shell toml markdown`. Skips the others (and their install). |
+| `create-pull-request`    | `true`                                                   | Unchanged.                                                                                                  |
+| `token`                  | `${{ github.token }}`                                    | Unchanged.                                                                                                  |
+| `github-app-client-id`   | `""`                                                     | Unchanged.                                                                                                  |
+| `github-app-private-key` | `""`                                                     | Unchanged.                                                                                                  |
+| `branch`                 | `bot/format-files`                                       | Unchanged (matches the repo branch convention).                                                             |
+| `commit-message`         | `Format files`                                           | **Changed default** (no `style:` prefix).                                                                   |
+| `title`                  | `Format files`                                           | **Changed default.**                                                                                        |
+| `body`                   | `Format YAML, Makefile, shell, TOML and Markdown files.` | **Changed default** (adds TOML).                                                                            |
+| `node-version`           | -                                                        | **Removed** (decision 7).                                                                                   |
+
+Always passed to `create-pull-request`: `delete-branch: true`.
+
+Outputs: `changed`, `pull-request-number`, `pull-request-url` (unchanged). In check mode `changed=true` is still set before the step fails, as today.
+
+Metadata: description lists all five types. Branding unchanged.
+
+### 4.2 Steps (`action.yml`)
+
+1. **Format files** (`id: format`, `shell: bash`, env `CHECK`, `TOOLS`, `ACTION_PATH`):
+   `make --file="$ACTION_PATH/Makefile" --no-print-directory $TARGET`, where `TARGET` is `check` or `format`. The script then sets `changed` from `git status --porcelain` (write mode) or from the Makefile's exit status (check mode, exit 2 means unformatted). In check mode it prints `::error file=<path>::not formatted` per file.
+2. **Generate GitHub App token**: unchanged. Condition: write mode, PR enabled, `changed`, and both app inputs set.
+3. **Create pull request**: unchanged, plus `delete-branch: true`.
+
+Sketch of the shell part:
+
+```bash
+set -euo pipefail
+if [ "$CHECK" = 'true' ]; then
+  if make --file="$ACTION_PATH/Makefile" --no-print-directory check; then
+    echo 'changed=false' >>"$GITHUB_OUTPUT"
+  else
+    echo 'changed=true' >>"$GITHUB_OUTPUT"
+    exit 1
+  fi
+else
+  make --file="$ACTION_PATH/Makefile" --no-print-directory format
+  if [ -n "$(git status --porcelain)" ]; then
+    echo 'changed=true' >>"$GITHUB_OUTPUT"
+  else
+    echo 'changed=false' >>"$GITHUB_OUTPUT"
+  fi
+fi
+```
+
+Note: `make` failing for a tool error (not "unformatted") must not be reported as `changed=true`. The Makefile `check` target therefore exits `1` for "unformatted" only after all tools ran, and exits `2`+ (make's own error code) for real errors. The script maps only the former.
+
+### 4.3 Makefile (action-owned, self-contained)
+
+Targets:
+
+| Target           | Role                                                               |
+| ---------------- | ------------------------------------------------------------------ |
+| `format`         | Run the selected formatters in write mode.                         |
+| `check`          | Same selection, check flags. Collects all failures, then exits 1.  |
+| `install-<tool>` | Install one pinned tool into the cache dir if missing. Idempotent. |
+| `help`           | List targets.                                                      |
+
+Rules:
+
+- All paths anchored to the Makefile's own directory; works from any cwd.
+- Variables, all overridable: `PRETTIER_VERSION`, `SHFMT_VERSION`, `TAPLO_VERSION`, `MBAKE_VERSION`, `TOOLS`, `BIN_DIR`.
+- Files are found once with `git ls-files --cached --others --exclude-standard -z -- '*.yaml' '*.yml' '*.md' ...` and passed to each tool. This honours `.gitignore`, includes new files and skips `node_modules` when ignored. It replaces `find` and its GNU/BSD differences. A non-git directory falls back to `find`.
+- Shell detection: `*.sh` plus extensionless files with a `#!` shebang for `sh|bash` (`shfmt -f` on the file list).
+- Prettier is called once with the YAML and Markdown files together (`--write` or `--check`, `--no-error-on-unmatched-pattern`).
+- Makefiles: root `Makefile`, `GNUmakefile`, `*.mk` at any depth, with the bundled `bake.toml` unless the caller has its own.
+- Empty file list for a type: print `no <type> files`, skip install, succeed.
+- Portable shell only: no `sed -i`, no `xargs -r`, no `find -print0` dependence beyond POSIX `-exec ... +` or the git NUL list through `xargs -0` guarded by a non-empty check.
+
+Tool table for the README (target):
+
+| Tool     | Pinned by          | Installed with                         | Installed when         |
+| -------- | ------------------ | -------------------------------------- | ---------------------- |
+| Prettier | `PRETTIER_VERSION` | `npm install --prefix <cache>`         | YAML or Markdown files |
+| mbake    | `MBAKE_VERSION`    | `pipx install` (fallback `pip --user`) | Makefile files         |
+| shfmt    | `SHFMT_VERSION`    | release binary, checksum verified      | shell files            |
+| taplo    | `TAPLO_VERSION`    | release binary, checksum verified      | TOML files             |
+
+Already-installed tools are used only if their version equals the pin. Otherwise the pinned one is installed in the cache dir and wins on `PATH`.
+
+### 4.4 Repo layout
+
+```text
+action.yml
+action/Makefile        # self-contained formatter logic used by the action (new)
+action/bake.toml       # mbake config shipped with the action (moved from .make/)
+Makefile               # dev entry point: install-tools, format, lint (uses .make/)
+.make/                 # shared, synced, not edited
+```
+
+`make format` at the repo root can simply delegate to `action/Makefile`, so the bot, the developer and the action all run the same logic (CLAUDE.md: "put make targets in the steps").
+
+### 4.5 Workflows
+
+- **One test workflow body for both ci and nightly** (fixes W9). Make `ci-action.yaml` and `nightly-test-released.yaml` share a reusable `lib-test-action.yaml` taking the action reference. Because `uses:` cannot be an expression, keep two thin jobs only if GitHub still forbids it; the test steps themselves live once in a composite action under `.github/actions/assert-*` (e.g. `assert-changed`, `assert-clean-tree`). If this proves heavier than the duplication, keep the two files but generate the second from the first by a `make` target and have CI fail on drift.
+- **Run the tests in a consumer-like directory** (fixes B2). Use a fresh `git init` dir under `$RUNNER_TEMP` as the working directory, not the repo checkout. The action path stays this repo. This alone would have caught B1.
+- **New and extended cases**, one behaviour per job or step:
+
+| Case                                                      | Mode  | Expect                                                       |
+| --------------------------------------------------------- | ----- | ------------------------------------------------------------ |
+| Each of YAML, Makefile, shell, TOML, Markdown unformatted | write | file reformatted, `changed=true`                             |
+| Second run                                                | write | `changed=false` (idempotent)                                 |
+| Each type unformatted                                     | check | fails, `changed=true`, tree untouched, file named in the log |
+| All formatted                                             | check | success, `changed=false`                                     |
+| Empty repo (no matching files)                            | both  | success, `changed=false`, no tool installed                  |
+| Extensionless shell script with shebang                   | write | reformatted                                                  |
+| File listed in `.prettierignore` / `.gitignore`           | write | untouched                                                    |
+| Untracked new unformatted file                            | check | fails                                                        |
+| `tools: toml` only                                        | write | only TOML reformatted                                        |
+| Invalid `check` value                                     | -     | fails with a clear message                                   |
+| Run from a repo with no `.make/`                          | write | works (regression for B1; fails on `main` today)             |
+| Tool version is the pinned one                            | -     | `prettier --version` etc. printed in the log match the pins  |
+
+- **PR creation** cannot run against this repo in CI without side effects. Cover it by the weekly `bot-format-files.yaml` (uses the released action) and say so in the README and PR descriptions. Do not claim it is tested by the matrix.
+- `ci-format.yaml` runs `make lint-*` as now, plus lints `action/Makefile` with checkmake and `action.yml` with actionlint's composite checks where supported.
+- `bot-format-files.yaml` keeps using the last released tag, which is correct (it dogfoods the release).
+- Update the header comments of `ci-action.yaml` and `nightly-test-released.yaml` when the tests change, and the pinned tag comment in `nightly-test-released.yaml` on each release.
+
+### 4.6 Documentation
+
+- README: lead with the properties (section 1), then usage. Examples pin an exact tag (`@v0.1.0`) or a SHA. Remove `@v1` everywhere.
+- Inputs and outputs tables regenerated from `action.yml` in the same PR (no drift).
+- State plainly: the default `GITHUB_TOKEN` PR does not trigger CI; "Allow GitHub Actions to create and approve pull requests" must be enabled in the repo settings.
+- Document `tools`, the scope rule (decision 8), and how to exclude files (`.prettierignore`, `.gitignore`).
+- Document the migration (4.8).
+
+### 4.7 Security
+
+- No `sudo`. No writes outside `$HOME/.cache/format-files-action` and the workspace.
+- Downloaded binaries are verified by SHA-256 pinned in the Makefile next to the version.
+- Temporary files via `mktemp`, never fixed `/tmp/<name>`.
+- Inputs are never interpolated in `run:`. `tools` is validated against an allow-list in the Makefile before use.
+- The App token keeps the minimal permissions. Keep `permission-workflows: write` only because the action may reformat `.github/workflows/*.yaml`. Document why.
+
+### 4.8 Breaking changes and migration
+
+| Change                                                  | Impact                                                                                        | Migration                                              |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `node-version` input removed, `setup-node` step removed | Callers passing it get a warning for an unknown input. Self-hosted runners without Node fail. | Remove the input. Install Node in the job if needed.   |
+| Default commit message and title are `Format files`     | PR titles change                                                                              | Set `title` and `commit-message` to keep the old text. |
+| Tools pinned to specific versions                       | Output may differ from `latest` once                                                          | Accept the first diff. Later runs are stable.          |
+| Scope includes `.make/` for shell and TOML              | More files formatted in repos with a `.make/`                                                 | Add the paths to `.gitignore`/`.prettierignore`.       |
+| Check mode no longer touches the tree                   | None for callers                                                                              | -                                                      |
+| New `tools` input                                       | Additive                                                                                      | -                                                      |
+
+Release as a new minor/major exact tag. Do not create floating tags.
+
+## 5. Implementation plan
+
+One logical change per PR, in this order (each branched from an up-to-date `main`):
+
+1. `bugfix/action-makefile-path` — fix B1 minimally (anchor the includes) and add the consumer-directory regression test (B2). Highest value, smallest diff. **Ship first.**
+2. `docs/fix-readme-and-defaults` — B4, B5 (README `@v1`, defaults, TOML in body and description).
+3. `refactor/self-contained-action-makefile` — decision 1, 4, 5, 6, 8: `action/Makefile`, pinned and verified installs, detection, one Prettier run, shell shebang support.
+4. `feat/check-mode-without-writes` — decision 2 and 3, annotations (W6, B6, B7).
+5. `feat/tools-input` — `tools` input and `delete-branch` (W7).
+6. `refactor/remove-node-setup` — decision 7.
+7. `test/extend-action-tests` — the table in 4.5 and the dedupe of the nightly workflow (W8, W9).
+
+## 6. Open questions for the maintainer
+
+1. Remove `setup-node` entirely (recommended), or keep it opt-in?
+2. Self-contained `action/Makefile` (recommended) or keep reusing `.make/*.mk` with anchored includes (smaller change, keeps sync coupling)?
+3. Format `.make/` in consumer repos (recommended: yes, unified scope), or keep the current special case?
+4. Is a `tools` input worth the surface, or is detection of existing file types enough?
+
+## 7. What was and was not verified in this review
+
+- Verified: B1, by running `make --file=<repo>/Makefile -n format` from a fresh temporary git repo. It fails on the first `include`.
+- Not run: `make lint`, `make format`, and the workflows. This review changes no code. The CI workflows cannot be run locally. The other findings come from reading the files.
+- Not verified: that `shfmt -f` skips hidden directories, and the exact release asset names and checksums for shfmt and taplo. Check both during implementation.
