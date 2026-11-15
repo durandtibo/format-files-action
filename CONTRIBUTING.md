@@ -18,7 +18,7 @@ Once you implement and test your feature or bug-fix, please submit a Pull Reques
 
 - Git
 - `make`
-- The formatters used by the action (Prettier, mbake, shfmt, markdownlint) if you want to run
+- The formatters used by the action (Prettier, mbake, shfmt, taplo) if you want to run
   `format`/`lint` locally instead of relying on CI — see [action.yml](action.yml) and
   [`.make`](.make) for how each one is installed
 
@@ -180,8 +180,8 @@ For feature requests, please include:
 
 ### Style
 
-- Format YAML, Makefiles, shell scripts, and Markdown with `make format` before committing
-  (the same formatters this action runs on caller repos: Prettier, mbake, shfmt, markdownlint)
+- Format YAML, Makefiles, shell scripts, TOML, and Markdown with `make format` before committing
+  (the same formatters this action runs on caller repos: Prettier, mbake, shfmt, taplo)
 - Pin third-party GitHub Actions to a full commit SHA, not a mutable tag
 - Keep `action.yml` inputs/outputs documented in `README.md`
 

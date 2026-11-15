@@ -1,5 +1,5 @@
 name: "Format Files"
-description: "Format YAML, Makefiles, shell scripts, and Markdown files using 'make format'"
+description: "Format YAML, Makefile, shell, TOML, and Markdown files using 'make format'"
 author: "Thibaut Durand"
 branding:
   icon: "align-left"
@@ -7,7 +7,7 @@ branding:
 
 inputs:
   node-version:
-    description: "Version of Node.js to use (needed by prettier and markdownlint)"
+    description: "Version of Node.js to use (needed by Prettier and taplo)"
     required: false
     default: "lts/*"
   check:
@@ -37,15 +37,15 @@ inputs:
   commit-message:
     description: "Commit message used by peter-evans/create-pull-request"
     required: false
-    default: "style: format files"
+    default: "Format files"
   title:
     description: "Pull request title used by peter-evans/create-pull-request"
     required: false
-    default: "style: format files"
+    default: "Format files"
   body:
     description: "Pull request body used by peter-evans/create-pull-request"
     required: false
-    default: "Format YAML, Makefile, shell, and Markdown files."
+    default: "Format YAML, Makefile, shell, TOML and Markdown files."
 
 outputs:
   changed:
