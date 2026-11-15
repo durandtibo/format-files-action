@@ -285,10 +285,10 @@ One logical change per PR, in this order (each branched from an up-to-date `main
 
 ## 6. Open questions for the maintainer
 
-1. Remove `setup-node` entirely (recommended), or keep it opt-in?
-2. Self-contained `action/Makefile` (recommended) or keep reusing `.make/*.mk` with anchored includes (smaller change, keeps sync coupling)?
-3. Format `.make/` in consumer repos (recommended: yes, unified scope), or keep the current special case?
-4. Is a `tools` input worth the surface, or is detection of existing file types enough?
+1. Remove `setup-node` entirely (recommended), or keep it opt-in? Answer: the simpler and most robust solution. 
+2. Self-contained `action/Makefile` (recommended) or keep reusing `.make/*.mk` with anchored includes (smaller change, keeps sync coupling)? Answer: keep reusing `.make/*.mk`
+3. Format `.make/` in consumer repos (recommended: yes, unified scope), or keep the current special case? Answer: follow recommendation
+4. Is a `tools` input worth the surface, or is detection of existing file types enough? Answer: 
 
 ## 7. What was and was not verified in this review
 
