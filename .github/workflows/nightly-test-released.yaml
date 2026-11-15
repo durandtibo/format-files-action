@@ -38,7 +38,8 @@ jobs:
           # shellcheck disable=SC2016 # writing literal shell source as data, not expanding it here
           printf '# bad shell\nfoo="bar"\nif [ "$foo" = "bar" ]; then\necho ok\nfi\n' >tmp-format-test/bad.sh
           printf '#   heading\n\n*  item\n*   item2\n' >tmp-format-test/bad.md
-          printf 'all:\n\t\t@echo    hi\n' >bad.mk
+          printf '[package]\nname    =    "x"\n' >tmp-format-test/bad.toml
+          printf 'all:\n\t@echo hi\nfoo:=1\n' >bad.mk
           git add -A
           git -c user.name=test -c user.email=test@example.com commit -m 'test: add unformatted fixtures' --quiet
 
@@ -54,13 +55,15 @@ jobs:
           CHANGED: ${{ steps.format.outputs.changed }}
         run: test "$CHANGED" = "true"
 
-      - name: Assert fixtures were reformatted
+      - name: Assert each fixture was reformatted
         shell: bash
         run: |
-          if git diff --quiet -- tmp-format-test bad.mk; then
-            echo "expected the fixtures to be reformatted, but found no diff"
-            exit 1
-          fi
+          for file in tmp-format-test/bad.yaml tmp-format-test/bad.sh tmp-format-test/bad.md tmp-format-test/bad.toml bad.mk; do
+            if git diff --quiet -- "$file"; then
+              echo "expected $file to be reformatted, but found no diff"
+              exit 1
+            fi
+          done
           git add -A
           git -c user.name=test -c user.email=test@example.com commit -m 'test: reformatted fixtures' --quiet
 
@@ -91,10 +94,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
 
-      - name: Create badly formatted fixture
+      - name: Create badly formatted fixtures
         shell: bash
         run: |
-          printf 'foo:    bar\nbaz:  qux\n' >tmp-format-test.yaml
+          mkdir -p tmp-format-test
+          printf 'foo:    bar\nbaz:  qux\n' >tmp-format-test/bad.yaml
+          # shellcheck disable=SC2016 # writing literal shell source as data, not expanding it here
+          printf '# bad shell\nfoo="bar"\nif [ "$foo" = "bar" ]; then\necho ok\nfi\n' >tmp-format-test/bad.sh
+          printf '#   heading\n\n*  item\n*   item2\n' >tmp-format-test/bad.md
+          printf '[package]\nname    =    "x"\n' >tmp-format-test/bad.toml
+          printf 'all:\n\t@echo hi\nfoo:=1\n' >bad.mk
           git add -A
           git -c user.name=test -c user.email=test@example.com commit -m 'test: add unformatted fixture' --quiet
 
@@ -118,7 +127,7 @@ jobs:
 
       - name: Assert no changes were left on disk
         shell: bash
-        run: git diff --quiet
+        run: test -z "$(git status --porcelain)"
 
   format-check-clean:
     permissions:
