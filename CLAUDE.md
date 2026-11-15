@@ -23,21 +23,21 @@ the `ci-action.yaml` and `nightly-test-released.yaml` workflows.
 - There is no local test suite. The action is tested by `ci-action.yaml` and `nightly-test-released.yaml`,
   which cannot be run locally; say so in the PR instead of claiming they pass.
 
-## Git workflow
+``## Git workflow
 
 - One branch and one PR per logical change, branched from an up-to-date `main`. Never commit or
   push to `main`.
 - Name branches `<type>/<short-description>` in kebab-case, with type one of: `feat`, `bugfix`,
   `hotfix`, `docs`, `refactor`, `perf`, `test`, `chore`, `ci`.
 - Write commit messages and PR titles as a short imperative sentence starting with a verb such as
-  `Add`, `Fix`, `Update`, `Remove` or `Improve` (e.g. `Add CLAUDE.md`, `Update readme`). Do not use
-  conventional-commit prefixes like `docs:` or `feat:` (the type prefix is only for branch names).
-  The squash-merge appends the PR number, so do not add one.
+  `Add`, `Fix`, `Update`, `Remove` or `Improve`. Do not use conventional-commit prefixes like
+  `docs:` or `feat:` (the type prefix is only for branch names). The squash-merge appends the PR
+  number, so do not add one.
 - PR descriptions cover what changed, what was deliberately left alone, and any behaviour change.
 - On conflicts with `main`, merge `origin/main` into the branch; do not rebase and force-push.
 - Update `README.md` when inputs, outputs, behaviour, or workflows change.
 - Releases are immutable exact version tags (`v0.0.2`, ...). Do not create or move floating tags
-  (`v0`, `latest`) and do not document them as an option.
+  (`v0`, `latest`) and do not document them as an option.``
 
 ## Action rules (`action.yml`)
 
