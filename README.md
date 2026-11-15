@@ -1,6 +1,8 @@
 # format-files-action
 
 [![CI](https://github.com/durandtibo/format-files-action/actions/workflows/ci.yaml/badge.svg)](https://github.com/durandtibo/format-files-action/actions/workflows/ci.yaml)
+[![Nightly](https://github.com/durandtibo/format-files-action/actions/workflows/nightly.yaml/badge.svg)](https://github.com/durandtibo/format-files-action/actions/workflows/nightly.yaml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/durandtibo/format-files-action/badge)](https://scorecard.dev/viewer/?uri=github.com/durandtibo/format-files-action)
 [![License](https://img.shields.io/badge/license-BSD--3--Clause-blue)](LICENSE)
 [![Latest release](https://img.shields.io/github/v/tag/durandtibo/format-files-action?label=release)](https://github.com/durandtibo/format-files-action/tags)
 
