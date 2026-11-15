@@ -5,29 +5,27 @@ body:
   - type: markdown
     attributes:
       value: >
-        #### Before submitting a bug, please make sure the issue hasn't been already addressed by searching through [the existing and past issues](https://github.com/durandtibo/format-files-action/issues?q=is%3Aissue).
+        #### Before submitting a bug, please make sure the issue hasn't been already addressed by searching through [the existing and past issues](https://github.com/durandtibo/shared-makefiles/issues?q=is%3Aissue).
   - type: textarea
     attributes:
       label: 🐛 Describe the bug
       description: |
         Please provide a clear and concise description of what the bug is.
 
-        If relevant, add a minimal reproduction: the workflow YAML that calls this action, the
-        inputs used, and the repo/files involved. It is very important for the snippet to be as
-        succinct (minimal) as possible, so please take time to trim down anything irrelevant.
+        If relevant, add a minimal example so that we can reproduce the error by running the code. It is very important for the snippet to be as succinct (minimal) as possible, so please take time to trim down any irrelevant code to help us debug efficiently. We are going to copy-paste your code and we expect to get the same result as you did: avoid any external data, and include the relevant imports, etc. For example:
 
-        Please also paste or describe the results you observe instead of the expected results. If
-        you observe an error, please paste the error message including the **full** output from
-        the failing step. It may be relevant to wrap logs in ```` ```triple quotes blocks``` ````.
+        If the code is too long (hopefully, it isn't), feel free to put it in a public gist and link it in the issue: https://gist.github.com.
+
+        Please also paste or describe the results you observe instead of the expected results. If you observe an error, please paste the error message including the **full** traceback of the exception. It may be relevant to wrap error messages in ```` ```triple quotes blocks``` ````.
       placeholder: |
         A clear and concise description of what the bug is.
 
-        ```yaml
-        # Workflow step that uses this action
+        ```python
+        # Sample code to reproduce the problem
         ```
 
         ```
-        The error message or log output you got.
+        The error message you got, with the full traceback.
         ```
     validations:
       required: true
@@ -35,8 +33,11 @@ body:
     attributes:
       label: Versions
       description: |
-        Please indicate the version (tag/SHA) of this action you are using, and the runner OS
-        (e.g. `ubuntu-latest`, `macos-latest`).
+        Please indicate the versions of the packages used. If you are using a conda environment,
+        you can run the following and paste the output below.
+        ```sh
+        conda list
+        ```
     validations:
       required: true
   - type: markdown
