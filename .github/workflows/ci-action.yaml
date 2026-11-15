@@ -4,7 +4,8 @@
 # scheduled format bot never "fixes" them into formatted, useless fixtures.
 # Covers write mode (reformats + reports changed=true, is idempotent), and check
 # mode (fails and leaves the working tree untouched on unformatted input,
-# succeeds on already-formatted input).
+# succeeds on already-formatted input), and a repository that does not contain the
+# action's own Makefile/.make/ (the action must not depend on the caller's directory).
 # It is mirrored by nightly-test-released.yaml, which tests the latest release.
 
 name: Test Action
@@ -154,3 +155,54 @@ jobs:
         run: |
           test "$OUTCOME" = "success"
           test "$CHANGED" = "false"
+
+  # Regression test for the action being run on a repository that does not contain the action's
+  # own Makefile/.make/. The action is checked out in a subdirectory, and the workspace root is
+  # a fresh consumer-like repository.
+  format-consumer-repo:
+    permissions:
+      contents: read
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    strategy:
+      max-parallel: 8
+      fail-fast: false
+      matrix:
+        os: ${{ fromJson(inputs.test-matrix).os_matrix }}
+
+    steps:
+      - name: Checkout the action
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
+        with:
+          path: action-src
+
+      - name: Create a consumer repository with a badly formatted fixture
+        shell: bash
+        run: |
+          git init --quiet
+          printf 'action-src/\n' >.gitignore
+          printf 'foo:    bar\nbaz:  qux\n' >bad.yaml
+          git add -A
+          git -c user.name=test -c user.email=test@example.com commit -m 'test: add unformatted fixture' --quiet
+          test ! -e .make
+          test ! -e Makefile
+
+      - name: Run format action
+        id: format
+        uses: ./action-src
+        with:
+          create-pull-request: false
+
+      - name: Assert action reports changed=true
+        shell: bash
+        env:
+          CHANGED: ${{ steps.format.outputs.changed }}
+        run: test "$CHANGED" = "true"
+
+      - name: Assert fixture was reformatted
+        shell: bash
+        run: |
+          if git diff --quiet -- bad.yaml; then
+            echo "expected bad.yaml to be reformatted, but found no diff"
+            exit 1
+          fi
