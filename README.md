@@ -7,6 +7,10 @@
 A composite GitHub Action that formats YAML, Makefile, shell, TOML, and Markdown files with `make format`
 and, if anything changed, opens a pull request with the result.
 
+> [!NOTE]
+> Pin an exact release tag (for example `@v0.0.2`) or a full commit SHA. This repository publishes
+> immutable exact tags only and has no floating tags such as `v1`.
+
 Point it at any checked-out repo — it doesn't need its own formatting config or tooling installed.
 The action carries its own `Makefile`/`.make/` and installs each formatter on demand, so a caller
 only needs `actions/checkout` before it.
@@ -87,18 +91,18 @@ Notes:
 
 ## Inputs
 
-| Name                     | Description                                                                                                         | Required | Default                                             |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------------------------------- |
-| `node-version`           | Version of Node.js to use (needed by Prettier and markdownlint).                                                    | No       | `lts/*`                                             |
-| `check`                  | Check formatting without writing changes; fails the action if any file is not formatted.                            | No       | `false`                                             |
-| `create-pull-request`    | Open a pull request with the changes using peter-evans/create-pull-request. Ignored when `check` is `true`.         | No       | `true`                                              |
-| `token`                  | Token used by peter-evans/create-pull-request to create the pull request. Ignored if `github-app-client-id` is set. | No       | `${{ github.token }}`                               |
-| `github-app-client-id`   | Client ID of a GitHub App used to generate a token for creating the pull request, instead of `token`.               | No       | (none)                                              |
-| `github-app-private-key` | Private key of the GitHub App identified by `github-app-client-id`.                                                 | No       | (none)                                              |
-| `branch`                 | Branch name used by peter-evans/create-pull-request.                                                                | No       | `bot/format-files`                                  |
-| `commit-message`         | Commit message used by peter-evans/create-pull-request.                                                             | No       | `style: format files`                               |
-| `title`                  | Pull request title used by peter-evans/create-pull-request.                                                         | No       | `style: format files`                               |
-| `body`                   | Pull request body used by peter-evans/create-pull-request.                                                          | No       | `Format YAML, Makefile, shell, and Markdown files.` |
+| Name                     | Description                                                                                                         | Required | Default                                                  |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------- | -------- | -------------------------------------------------------- |
+| `node-version`           | Version of Node.js to use (needed by Prettier and taplo).                                                           | No       | `lts/*`                                                  |
+| `check`                  | Check formatting without writing changes; fails the action if any file is not formatted.                            | No       | `false`                                                  |
+| `create-pull-request`    | Open a pull request with the changes using peter-evans/create-pull-request. Ignored when `check` is `true`.         | No       | `true`                                                   |
+| `token`                  | Token used by peter-evans/create-pull-request to create the pull request. Ignored if `github-app-client-id` is set. | No       | `${{ github.token }}`                                    |
+| `github-app-client-id`   | Client ID of a GitHub App used to generate a token for creating the pull request, instead of `token`.               | No       | (none)                                                   |
+| `github-app-private-key` | Private key of the GitHub App identified by `github-app-client-id`.                                                 | No       | (none)                                                   |
+| `branch`                 | Branch name used by peter-evans/create-pull-request.                                                                | No       | `bot/format-files`                                       |
+| `commit-message`         | Commit message used by peter-evans/create-pull-request.                                                             | No       | `Format files`                                           |
+| `title`                  | Pull request title used by peter-evans/create-pull-request.                                                         | No       | `Format files`                                           |
+| `body`                   | Pull request body used by peter-evans/create-pull-request.                                                          | No       | `Format YAML, Makefile, shell, TOML and Markdown files.` |
 
 ## Outputs
 
@@ -119,7 +123,7 @@ permissions:
 
 steps:
   - uses: actions/checkout@v4
-  - uses: durandtibo/format-files-action@v1
+  - uses: durandtibo/format-files-action@v0.0.2
 ```
 
 ### Check formatting in CI
@@ -129,7 +133,7 @@ Fails the job if any file isn't already formatted, without leaving any changes b
 ```yaml
 steps:
   - uses: actions/checkout@v4
-  - uses: durandtibo/format-files-action@v1
+  - uses: durandtibo/format-files-action@v0.0.2
     with:
       check: true
 ```
@@ -139,7 +143,7 @@ steps:
 ```yaml
 - name: Format files
   id: format
-  uses: durandtibo/format-files-action@v1
+  uses: durandtibo/format-files-action@v0.0.2
 
 - name: Show result
   run: echo "changed=${{ steps.format.outputs.changed }} pr=${{ steps.format.outputs.pull-request-url }}"
@@ -154,7 +158,7 @@ permissions:
 
 steps:
   - uses: actions/checkout@v4
-  - uses: durandtibo/format-files-action@v1
+  - uses: durandtibo/format-files-action@v0.0.2
     with:
       github-app-client-id: ${{ secrets.APP_CLIENT_ID }}
       github-app-private-key: ${{ secrets.APP_PRIVATE_KEY }}
@@ -163,11 +167,11 @@ steps:
 ### Custom branch, commit message, and PR title/body
 
 ```yaml
-- uses: durandtibo/format-files-action@v1
+- uses: durandtibo/format-files-action@v0.0.2
   with:
     branch: bot/reformat
-    commit-message: "chore: reformat files"
-    title: "chore: reformat files"
+    commit-message: Reformat files
+    title: Reformat files
     body: Automated formatting pass.
 ```
 
@@ -193,7 +197,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - uses: durandtibo/format-files-action@v1
+      - uses: durandtibo/format-files-action@v0.0.2
         with:
           github-app-client-id: ${{ secrets.APP_CLIENT_ID }}
           github-app-private-key: ${{ secrets.APP_PRIVATE_KEY }}
