@@ -103,6 +103,7 @@ runs:
       with:
         token: ${{ steps.app-token.outputs.token || inputs.token }}
         branch: ${{ inputs.branch }}
+        delete-branch: true
         commit-message: ${{ inputs.commit-message }}
         title: ${{ inputs.title }}
         body: ${{ inputs.body }}

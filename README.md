@@ -54,6 +54,8 @@ keep their versions and configs in sync. This action centralizes that:
 5. **Write mode** (default): if anything changed and `create-pull-request` is `true`, generates a
    token and opens a pull request with the changes via
    [`peter-evans/create-pull-request`](https://github.com/peter-evans/create-pull-request):
+   - It passes `delete-branch: true`, so the branch is deleted when the pull request is closed, and
+     when it is left undeleted after a merge, instead of piling up stale `bot/format-files` branches.
    - By default it uses `token` (the job's `GITHUB_TOKEN`), which does **not** trigger downstream
      workflows (e.g. CI) on the resulting PR — a GitHub limitation.
    - If `github-app-client-id`/`github-app-private-key` are set instead, it exchanges them for an
