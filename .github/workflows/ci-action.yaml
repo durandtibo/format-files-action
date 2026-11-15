@@ -1,11 +1,14 @@
 # Workflow testing the action from the current repository code (uses: ./)
-# on multiple operating systems. Badly formatted YAML, Makefile, shell, and
+# on multiple operating systems. Badly formatted YAML, Makefile, shell, TOML, and
 # Markdown fixtures are generated at runtime (not committed) so the repo's own
 # scheduled format bot never "fixes" them into formatted, useless fixtures.
 # Covers write mode (reformats + reports changed=true, is idempotent), and check
 # mode (fails and leaves the working tree untouched on unformatted input,
 # succeeds on already-formatted input), and a repository that does not contain the
-# action's own Makefile/.make/ (the action must not depend on the caller's directory).
+# action's own Makefile/.make/ (the action must not depend on the caller's directory),
+# an empty repository, and files excluded by .prettierignore/.gitignore.
+# The consumer-repository jobs are not mirrored in nightly-test-released.yaml until a
+# release contains the include-path fix.
 # It is mirrored by nightly-test-released.yaml, which tests the latest release.
 
 name: Test Action
@@ -43,7 +46,8 @@ jobs:
           # shellcheck disable=SC2016 # writing literal shell source as data, not expanding it here
           printf '# bad shell\nfoo="bar"\nif [ "$foo" = "bar" ]; then\necho ok\nfi\n' >tmp-format-test/bad.sh
           printf '#   heading\n\n*  item\n*   item2\n' >tmp-format-test/bad.md
-          printf 'all:\n\t\t@echo    hi\n' >bad.mk
+          printf '[package]\nname    =    "x"\n' >tmp-format-test/bad.toml
+          printf 'all:\n\t@echo hi\nfoo:=1\n' >bad.mk
           git add -A
           git -c user.name=test -c user.email=test@example.com commit -m 'test: add unformatted fixtures' --quiet
 
@@ -59,13 +63,15 @@ jobs:
           CHANGED: ${{ steps.format.outputs.changed }}
         run: test "$CHANGED" = "true"
 
-      - name: Assert fixtures were reformatted
+      - name: Assert each fixture was reformatted
         shell: bash
         run: |
-          if git diff --quiet -- tmp-format-test bad.mk; then
-            echo "expected the fixtures to be reformatted, but found no diff"
-            exit 1
-          fi
+          for file in tmp-format-test/bad.yaml tmp-format-test/bad.sh tmp-format-test/bad.md tmp-format-test/bad.toml bad.mk; do
+            if git diff --quiet -- "$file"; then
+              echo "expected $file to be reformatted, but found no diff"
+              exit 1
+            fi
+          done
           git add -A
           git -c user.name=test -c user.email=test@example.com commit -m 'test: reformatted fixtures' --quiet
 
@@ -96,10 +102,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
 
-      - name: Create badly formatted fixture
+      - name: Create badly formatted fixtures
         shell: bash
         run: |
-          printf 'foo:    bar\nbaz:  qux\n' >tmp-format-test.yaml
+          mkdir -p tmp-format-test
+          printf 'foo:    bar\nbaz:  qux\n' >tmp-format-test/bad.yaml
+          # shellcheck disable=SC2016 # writing literal shell source as data, not expanding it here
+          printf '# bad shell\nfoo="bar"\nif [ "$foo" = "bar" ]; then\necho ok\nfi\n' >tmp-format-test/bad.sh
+          printf '#   heading\n\n*  item\n*   item2\n' >tmp-format-test/bad.md
+          printf '[package]\nname    =    "x"\n' >tmp-format-test/bad.toml
+          printf 'all:\n\t@echo hi\nfoo:=1\n' >bad.mk
           git add -A
           git -c user.name=test -c user.email=test@example.com commit -m 'test: add unformatted fixture' --quiet
 
@@ -123,7 +135,7 @@ jobs:
 
       - name: Assert no changes were left on disk
         shell: bash
-        run: git diff --quiet
+        run: test -z "$(git status --porcelain)"
 
   format-check-clean:
     permissions:
@@ -206,3 +218,96 @@ jobs:
             echo "expected bad.yaml to be reformatted, but found no diff"
             exit 1
           fi
+
+  # An empty repository (no file the action formats) is a success in both modes
+  format-no-files:
+    permissions:
+      contents: read
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    strategy:
+      max-parallel: 8
+      fail-fast: false
+      matrix:
+        os: ${{ fromJson(inputs.test-matrix).os_matrix }}
+
+    steps:
+      - name: Checkout the action
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
+        with:
+          path: action-src
+
+      - name: Create a consumer repository with nothing to format
+        shell: bash
+        run: |
+          git init --quiet
+          printf 'action-src/\n' >.gitignore
+          git add -A
+          git -c user.name=test -c user.email=test@example.com commit -m 'test: empty repository' --quiet
+
+      - name: Run format action in write mode
+        id: write
+        uses: ./action-src
+        with:
+          create-pull-request: false
+
+      - name: Run format action in check mode
+        id: check
+        uses: ./action-src
+        with:
+          check: true
+          create-pull-request: false
+
+      - name: Assert both runs succeeded with changed=false
+        shell: bash
+        env:
+          WRITE_CHANGED: ${{ steps.write.outputs.changed }}
+          CHECK_CHANGED: ${{ steps.check.outputs.changed }}
+        run: |
+          test "$WRITE_CHANGED" = "false"
+          test "$CHECK_CHANGED" = "false"
+          test -z "$(git status --porcelain)"
+
+  # Files excluded through .prettierignore and .gitignore are left untouched
+  format-ignored-files:
+    permissions:
+      contents: read
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    strategy:
+      max-parallel: 8
+      fail-fast: false
+      matrix:
+        os: ${{ fromJson(inputs.test-matrix).os_matrix }}
+
+    steps:
+      - name: Checkout the action
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
+        with:
+          path: action-src
+
+      - name: Create a consumer repository with ignored, badly formatted files
+        shell: bash
+        run: |
+          git init --quiet
+          printf 'action-src/\nignored-by-git.yaml\n' >.gitignore
+          printf 'ignored-by-prettier.yaml\n' >.prettierignore
+          printf 'foo:    bar\n' >ignored-by-prettier.yaml
+          printf 'foo:    bar\n' >ignored-by-git.yaml
+          git add -A
+          git -c user.name=test -c user.email=test@example.com commit -m 'test: add ignored fixtures' --quiet
+
+      - name: Run format action
+        id: format
+        uses: ./action-src
+        with:
+          create-pull-request: false
+
+      - name: Assert ignored files were left untouched
+        shell: bash
+        env:
+          CHANGED: ${{ steps.format.outputs.changed }}
+        run: |
+          test "$CHANGED" = "false"
+          test "$(cat ignored-by-prettier.yaml)" = 'foo:    bar'
+          test "$(cat ignored-by-git.yaml)" = 'foo:    bar'
