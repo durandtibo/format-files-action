@@ -1,17 +1,21 @@
 SHELL = /bin/bash
 
-include .make/help.mk
-include .make/actions.mk
-include .make/git.mk
-include .make/github.mk
-include .make/makefile.mk
-include .make/markdown.mk
-include .make/self.mk
-include .make/shell.mk
-include .make/toml.mk
-include .make/tools.mk
-include .make/uv.mk
-include .make/yaml.mk
+# Directory of this Makefile. Includes are anchored on it (not on the current directory) so that
+# the Makefile also works when the action runs it against another repository's checkout.
+MAKEFILE_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
+
+include $(MAKEFILE_DIR).make/help.mk
+include $(MAKEFILE_DIR).make/actions.mk
+include $(MAKEFILE_DIR).make/git.mk
+include $(MAKEFILE_DIR).make/github.mk
+include $(MAKEFILE_DIR).make/makefile.mk
+include $(MAKEFILE_DIR).make/markdown.mk
+include $(MAKEFILE_DIR).make/self.mk
+include $(MAKEFILE_DIR).make/shell.mk
+include $(MAKEFILE_DIR).make/toml.mk
+include $(MAKEFILE_DIR).make/tools.mk
+include $(MAKEFILE_DIR).make/uv.mk
+include $(MAKEFILE_DIR).make/yaml.mk
 
 .DEFAULT_GOAL := help
 
