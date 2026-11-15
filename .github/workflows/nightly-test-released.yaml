@@ -159,3 +159,147 @@ jobs:
         run: |
           test "$OUTCOME" = "success"
           test "$CHANGED" = "false"
+
+  # Check mode must detect each file type on its own, fail, and leave the tree untouched
+  format-check-per-type:
+    permissions:
+      contents: read
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    strategy:
+      max-parallel: 8
+      fail-fast: false
+      matrix:
+        os: ${{ fromJson(inputs.test-matrix).os_matrix }}
+        fixture: [yaml, shell, markdown, toml, makefile]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
+
+      - name: Create one badly formatted fixture
+        shell: bash
+        env:
+          FIXTURE: ${{ matrix.fixture }}
+        run: |
+          mkdir -p tmp-format-test
+          case "$FIXTURE" in
+            yaml) printf 'foo:    bar\nbaz:  qux\n' >tmp-format-test/bad.yaml ;;
+            shell) printf '# bad shell\nif true; then\necho ok\nfi\n' >tmp-format-test/bad.sh ;;
+            markdown) printf '#   heading\n\n*  item\n*   item2\n' >tmp-format-test/bad.md ;;
+            toml) printf '[package]\nname    =    "x"\n' >tmp-format-test/bad.toml ;;
+            makefile) printf 'all:\n\t@echo hi\nfoo:=1\n' >tmp-format-test/bad.mk ;;
+          esac
+          git add -A
+          git -c user.name=test -c user.email=test@example.com commit -m 'test: add unformatted fixture' --quiet
+
+      # The error annotation of this step is expected: the step must fail
+      - name: Run format action in check mode
+        id: format
+        continue-on-error: true
+        uses: durandtibo/format-files-action@1c50829b34a99c23bb309a56546722f594c2996b # ratchet:durandtibo/format-files-action@v0.0.2
+        with:
+          check: true
+          create-pull-request: false
+
+      - name: Assert the action failed, reported changed=true and left the tree untouched
+        shell: bash
+        env:
+          OUTCOME: ${{ steps.format.outcome }}
+          CHANGED: ${{ steps.format.outputs.changed }}
+        run: |
+          test "$OUTCOME" = "failure"
+          test "$CHANGED" = "true"
+          test -z "$(git status --porcelain)"
+
+  # Check mode never opens a pull request, even when create-pull-request is true
+  format-check-no-pull-request:
+    permissions:
+      contents: read
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    strategy:
+      max-parallel: 8
+      fail-fast: false
+      matrix:
+        os: ${{ fromJson(inputs.test-matrix).os_matrix }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
+
+      - name: Create a badly formatted fixture
+        shell: bash
+        run: |
+          printf 'foo:    bar\n' >tmp-bad.yaml
+          git add -A
+          git -c user.name=test -c user.email=test@example.com commit -m 'test: add unformatted fixture' --quiet
+
+      # The error annotation of this step is expected: the step must fail
+      - name: Run format action in check mode with create-pull-request enabled
+        id: format
+        continue-on-error: true
+        uses: durandtibo/format-files-action@1c50829b34a99c23bb309a56546722f594c2996b # ratchet:durandtibo/format-files-action@v0.0.2
+        with:
+          check: true
+          create-pull-request: true
+
+      - name: Assert it failed without creating a pull request
+        shell: bash
+        env:
+          OUTCOME: ${{ steps.format.outcome }}
+          PR_NUMBER: ${{ steps.format.outputs.pull-request-number }}
+          PR_URL: ${{ steps.format.outputs.pull-request-url }}
+        run: |
+          test "$OUTCOME" = "failure"
+          test -z "$PR_NUMBER"
+          test -z "$PR_URL"
+          test -z "$(git status --porcelain)"
+
+  # Write mode produces the exact formatted output, handles nested directories and file names
+  # with spaces, and does not open a pull request when create-pull-request is false
+  format-write-content:
+    permissions:
+      contents: read
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    strategy:
+      max-parallel: 8
+      fail-fast: false
+      matrix:
+        os: ${{ fromJson(inputs.test-matrix).os_matrix }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
+
+      - name: Create badly formatted fixtures
+        shell: bash
+        run: |
+          mkdir -p 'tmp-format-test/dir with space/nested'
+          printf 'foo:    bar\n' >'tmp-format-test/dir with space/nested/bad file.yaml'
+          printf '[package]\nname    =    "x"\n' >tmp-format-test/bad.toml
+          printf 'foo:    bar' >tmp-format-test/no-trailing-newline.yaml
+          git add -A
+          git -c user.name=test -c user.email=test@example.com commit -m 'test: add unformatted fixtures' --quiet
+
+      - name: Run format action
+        id: format
+        uses: durandtibo/format-files-action@1c50829b34a99c23bb309a56546722f594c2996b # ratchet:durandtibo/format-files-action@v0.0.2
+        with:
+          create-pull-request: false
+
+      - name: Assert exact formatted content and outputs
+        shell: bash
+        env:
+          CHANGED: ${{ steps.format.outputs.changed }}
+          PR_NUMBER: ${{ steps.format.outputs.pull-request-number }}
+          PR_URL: ${{ steps.format.outputs.pull-request-url }}
+        run: |
+          test "$CHANGED" = "true"
+          test -z "$PR_NUMBER"
+          test -z "$PR_URL"
+          test "$(cat 'tmp-format-test/dir with space/nested/bad file.yaml')" = 'foo: bar'
+          test "$(cat tmp-format-test/no-trailing-newline.yaml)" = 'foo: bar'
+          test "$(tail -c1 tmp-format-test/no-trailing-newline.yaml | wc -l | tr -d ' ')" = '1'
+          grep -q 'name = "x"' tmp-format-test/bad.toml
