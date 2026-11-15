@@ -1,0 +1,3 @@
+# Long lines are left to prettier, which does not wrap prose; tables, links and
+# code blocks cannot be wrapped anyway.
+MD013: false

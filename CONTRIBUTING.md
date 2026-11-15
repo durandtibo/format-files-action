@@ -213,7 +213,7 @@ By participating in this project you agree to abide by its terms.
 ### Getting Help
 
 - **Documentation:** [README.md](README.md)
-- **Issues:** https://github.com/durandtibo/format-files-action/issues
+- **Issues:** <https://github.com/durandtibo/format-files-action/issues>
 
 ## License
 
