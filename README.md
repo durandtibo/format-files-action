@@ -29,8 +29,9 @@ keep their versions and configs in sync. This action centralizes that:
 
 ## How it works
 
-1. Installs Node.js ([`actions/setup-node`](https://github.com/actions/setup-node)), needed by
-   Prettier (and by taplo on Linux).
+1. Checks that Node.js is on the `PATH` (Prettier and taplo need it). GitHub-hosted runners ship it.
+   The action does not install Node.js: to use a specific version, run
+   [`actions/setup-node`](https://github.com/actions/setup-node) before the action.
 2. Runs `make --file="$GITHUB_ACTION_PATH/Makefile" format` against the caller's checkout. That
    target runs, in order:
    - [`format-yaml`](.make/yaml.mk) — Prettier
@@ -84,18 +85,18 @@ Notes:
 
 ## Requirements
 
-| Requirement            | Notes                                                                                               |
-| ---------------------- | --------------------------------------------------------------------------------------------------- |
-| `actions/checkout`     | Must run before this action so there are files (and a git repo) to format.                          |
-| `make`                 | Must be available on the runner (present by default on GitHub-hosted `ubuntu-*`/`macos-*` runners). |
-| `contents: write`      | Needed on the job if a pull request should be opened (write mode).                                  |
-| `pull-requests: write` | Needed on the job if a pull request should be opened (write mode).                                  |
+| Requirement            | Notes                                                                                                                                            |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `actions/checkout`     | Must run before this action so there are files (and a git repo) to format.                                                                       |
+| Node.js                | Must be on the `PATH` (preinstalled on GitHub-hosted runners). Otherwise the action fails with exit code 69; add `actions/setup-node` before it. |
+| `make`                 | Must be available on the runner (present by default on GitHub-hosted `ubuntu-*`/`macos-*` runners).                                              |
+| `contents: write`      | Needed on the job if a pull request should be opened (write mode).                                                                               |
+| `pull-requests: write` | Needed on the job if a pull request should be opened (write mode).                                                                               |
 
 ## Inputs
 
 | Name                     | Description                                                                                                         | Required | Default                                                  |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------- | -------- | -------------------------------------------------------- |
-| `node-version`           | Version of Node.js to use (needed by Prettier and taplo).                                                           | No       | `lts/*`                                                  |
 | `check`                  | Check formatting without writing changes; fails the action if any file is not formatted.                            | No       | `false`                                                  |
 | `create-pull-request`    | Open a pull request with the changes using peter-evans/create-pull-request. Ignored when `check` is `true`.         | No       | `true`                                                   |
 | `token`                  | Token used by peter-evans/create-pull-request to create the pull request. Ignored if `github-app-client-id` is set. | No       | `${{ github.token }}`                                    |
@@ -204,6 +205,12 @@ jobs:
           github-app-client-id: ${{ secrets.APP_CLIENT_ID }}
           github-app-private-key: ${{ secrets.APP_PRIVATE_KEY }}
 ```
+
+## Migration
+
+- **`node-version` input removed**, and the action no longer runs `actions/setup-node`. Remove the
+  input from your workflow. If you need a specific Node.js version, or a self-hosted runner without
+  Node.js, run `actions/setup-node` before this action.
 
 ## Development
 
