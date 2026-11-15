@@ -206,8 +206,15 @@ to list them, and `make format` / `make lint` to format or lint locally. See
 [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow, [SECURITY.md](SECURITY.md) for reporting
 vulnerabilities, and the [Code of Conduct](CODE_OF_CONDUCT.md).
 
-Workflows in [`.github/workflows`](.github/workflows) test the action on Linux and macOS in write
-mode (including idempotency) and check mode, and run it weekly against this repo.
+Workflows in [`.github/workflows`](.github/workflows) test the action on the Linux and macOS
+runners listed by [`durandtibo/workflow-config-action`](https://github.com/durandtibo/workflow-config-action),
+in write mode (including idempotency) and check mode:
+
+- `ci.yaml` (pull requests, pushes to `main`, nightly) tests the current code through
+  `ci-format.yaml` (lint) and `ci-action.yaml` (the action itself, `uses: ./`).
+- `nightly.yaml` tests the latest release through `nightly-test-released.yaml`.
+- `bot-*.yaml` run scheduled automation, including `bot-format-files.yaml`, which formats this repo
+  weekly with the released action.
 
 ## License
 
