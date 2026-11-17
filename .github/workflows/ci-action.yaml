@@ -23,7 +23,8 @@
 #   - format-check-no-pull-request: check mode never opens a pull request.
 #   - format-write-content: exact formatted content for nested directories and names with spaces.
 #
-# Cells per run: 3 general jobs x the OS matrix + 3 edge jobs x os_latest (+ 5 file types).
+# Cells per run: 3 general jobs x the OS matrix + 5 edge jobs x os_latest + format-check-per-type
+# (5 file types x os_latest). Every job has timeout-minutes and fail-fast: false.
 # The pull request creation itself is not tested here: it needs write access, and tests have no
 # side effects outside the runner.
 

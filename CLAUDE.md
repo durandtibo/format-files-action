@@ -57,7 +57,8 @@ properties the action must have (P1 to P12) and the planned changes; check a cha
 - Only ship what the action needs at runtime: `action.yml`, `LICENSE`, the root `Makefile` and
   `.make/` are exported, and `.gitattributes` marks everything else `export-ignore`. Never
   `export-ignore` the `Makefile` or `.make/`. When the action starts using a new file, un-ignore it
-  there. Check the exported set with `git archive --worktree-attributes HEAD | tar t`.
+  there. Check the exported set with `make check-export` (`dev/check_export.sh`, run by `ci-export.yaml`),
+  or by hand with `git archive --worktree-attributes HEAD | tar t`.
 
 ## Makefile rules (`Makefile`, `.make/`)
 
@@ -84,8 +85,11 @@ Files are prefixed by role:
 - `ci.yaml`: entry point for pull requests, pushes to `main`, a nightly schedule and manual runs. It
   holds no steps, only jobs that call the reusable workflows below.
   - `lib-get-test-matrix.yaml`: loads the OS list (Linux and macOS runners) once from
-    `durandtibo/workflow-config-action` and passes it to the test jobs as `test-matrix`. The
+    `durandtibo/workflow-config-action`, with the same keys in every action repository (`os_matrix`,
+    `os_macos`, `os_latest`, `python_versions`, `python_versions_standard`) and passes it to the test jobs as `test-matrix`. The
     supported OS list lives in that action, never hardcoded in this repo.
+  - `ci-export.yaml`: runs `make check-export`: the files shipped by `git archive` are exactly the
+    files the action needs (`uses: ./` hides an `export-ignore` mistake).
   - `ci-format.yaml`: runs the `make lint-*` / `make check-format-shell` targets.
   - `ci-action.yaml`: runs the action from this checkout (`uses: ./`), i.e. the version not
     released yet, on the Linux/macOS matrix. Covers write mode (reformats, `changed=true`,
