@@ -10,7 +10,7 @@ request with the changes (via `peter-evans/create-pull-request`). In `check` mod
 and leaves the working tree untouched. The formatting logic lives in the `Makefile` and the shared
 `.make/` directory, which the action runs with `make --file="$ACTION_PATH/Makefile" format`. There
 is no separate script: the action's steps are inline in `action.yml`, and it is tested end to end by
-the `ci-action.yaml` and `nightly-test-released.yaml` workflows. `review/target_state.md` lists the
+the `ci-action.yaml` workflow (local and released). `review/target_state.md` lists the
 properties the action must have (P1 to P12) and the planned changes; check a change against it.
 
 ## Environment
@@ -21,7 +21,7 @@ properties the action must have (P1 to P12) and the planned changes; check a cha
   `format` and `lint`).
 - Run `make format` and `make lint` before committing. Fix what they report instead of disabling
   rules.
-- There is no local test suite. The action is tested by `ci-action.yaml` and `nightly-test-released.yaml`,
+- There is no local test suite. The action is tested by `ci-action.yaml`,
   which cannot be run locally; say so in the PR instead of claiming they pass.
 
 ## Git workflow
@@ -92,7 +92,7 @@ Files are prefixed by role:
     idempotent) and check mode (fails and leaves the tree untouched on unformatted input,
     succeeds on formatted input). Badly formatted fixtures are generated at runtime so the format
     bot never "fixes" them.
-- `nightly.yaml`: nightly entry point that calls `nightly-test-released.yaml`, the same tests
+- `nightly.yaml`: nightly entry point that calls `ci-action.yaml` with `use-released: true`, the same tests
   against the last released tag.
 - `ci-verify-workflows.yaml`: lints the workflow files themselves. It has its own triggers and is
   not called from `ci.yaml`.
@@ -109,12 +109,12 @@ Conventions:
   run alone. Add a new check as a new workflow plus a job in `ci.yaml`.
 - Put `make` targets in the steps rather than duplicating commands, so local runs and CI match.
 - Start each file with a comment saying what it does, and update it when the behaviour changes.
-- When the stable tag tested in `nightly-test-released.yaml` changes, update the comment at the top of that
+- When the stable tag tested in `ci-action.yaml` (the released steps) changes, update the comment at the top of that
   file too.
 
 ## Tests
 
-- Test behaviour through the `ci-action.yaml` / `nightly-test-released.yaml` workflows: one behaviour per
+- Test behaviour through the `ci-action.yaml` workflow: one behaviour per
   job or step, covering success, failure, and edge cases (already formatted input, check mode,
   no changes, each file type).
 - Every bug fix needs a regression case that fails without the fix.
@@ -130,16 +130,18 @@ Two levels:
 1. **Local action**: the action from this checkout (`uses: ./`) in a real workflow
    (`ci-action.yaml`, called by `ci.yaml`).
 2. **Released action**: the latest stable release (`uses: durandtibo/format-files-action@<sha>`),
-   run nightly with the same cases as level 1 (`nightly-test-released.yaml`, called by
-   `nightly.yaml`). Never run it on pull requests.
+   run nightly with the same cases as level 1 (`ci-action.yaml` with `use-released: true`,
+   called by `nightly.yaml`). Never run it on pull requests.
 
 Rules:
 
 - Never write an OS in a workflow: read the list from `durandtibo/workflow-config-action` through
   `lib-get-test-matrix.yaml`. The same matrix runs on pull requests, pushes and the schedule.
-- General behaviour (write mode, check mode, idempotency) runs on the full OS matrix. Keep
-  `nightly-test-released.yaml` a mirror of `ci-action.yaml`: a change to one is made in the
-  other, unless the released version does not have the feature yet (say so in a comment).
+- General behaviour (write mode, check mode, idempotency) runs on the full OS matrix
+  (`os_matrix`); edge cases (one input, one unusual file) run on `os_latest` only. Local and
+  released runs share one file: every action step exists twice (`if: !inputs.use-released` and
+  `if: inputs.use-released`). A job the released version cannot pass yet gets
+  `if: ${{ !inputs.use-released }}` and a comment saying why.
 - The action tests use the real action, real tools and the real `git`, never a fake. Fixtures are
   throwaway files created at runtime under the runner, so the format bot never "fixes" them.
 - Failure paths use `continue-on-error: true`, an `id`, and a step that asserts `steps.<id>.outcome`.
