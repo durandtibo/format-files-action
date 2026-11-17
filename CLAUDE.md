@@ -96,7 +96,9 @@ Files are prefixed by role:
   - `ci-action.yaml`: runs the action from this checkout (`uses: ./`), i.e. the version not
     released yet, on the Linux/macOS matrix. Covers write mode (reformats, `changed=true`,
     idempotent) and check mode (fails and leaves the tree untouched on unformatted input,
-    succeeds on formatted input). Badly formatted fixtures are generated at runtime so the format
+    succeeds on formatted input), plus `test-export`, which runs the action from the `git archive`
+    output (local only). Jobs are named `test` (default usage), `test-<usage>` and `test-<edge case>`.
+    Every negative check-mode job first runs a positive control on the same runner. Badly formatted fixtures are generated at runtime so the format
     bot never "fixes" them.
 - `nightly.yaml`: nightly entry point that calls `ci-action.yaml` with `use-released: true`, the same tests
   against the last released tag.
