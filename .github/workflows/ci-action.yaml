@@ -11,19 +11,24 @@
 # (not committed) so the repo's own scheduled format bot never "fixes" them.
 #
 # General behaviour runs on the full OS matrix (os_matrix from lib-get-test-matrix.yaml):
-#   - format-write: reformats, reports changed=true, is idempotent.
-#   - format-check: fails on unformatted input and leaves the tree untouched.
-#   - format-check-clean: succeeds on already-formatted input.
+#   - test: the default usage (write mode) reformats, reports changed=true, is idempotent.
+#   - test-check: the main documented usage (check mode) fails on unformatted input and leaves
+#     the tree untouched.
+#   - test-check-clean: check mode succeeds on already-formatted input.
 # Edge cases run on the *-latest runners only (os_latest), because they exercise one input or
 # one unusual file, not the portability of the tools:
-#   - format-consumer-repo, format-no-files, format-ignored-files: a repository that does not
+#   - test-consumer-repo, test-no-files, test-ignored-files: a repository that does not
 #     contain the action's own Makefile/.make/, an empty repository, files excluded by
 #     .prettierignore/.gitignore. Local only until a release contains the include-path fix.
-#   - format-check-per-type: each file type on its own in check mode.
-#   - format-check-no-pull-request: check mode never opens a pull request.
-#   - format-write-content: exact formatted content for nested directories and names with spaces.
+#   - test-check-per-type: each file type on its own in check mode.
+#   - test-check-no-pull-request: check mode never opens a pull request.
+#   - test-write-content: exact formatted content for nested directories and names with spaces.
+#   - test-export: the action runs from the exported archive (git archive), what a release ships.
+#     Local only: the released action is already the archive.
+# Every negative test (check mode that must fail) first runs the same check on formatted input on
+# the same runner (positive control), so it cannot fail for the wrong reason.
 #
-# Cells per run: 3 general jobs x the OS matrix + 5 edge jobs x os_latest + format-check-per-type
+# Cells per run: 3 general jobs x the OS matrix + 6 edge jobs x os_latest + test-check-per-type
 # (5 file types x os_latest). Every job has timeout-minutes and fail-fast: false.
 # The pull request creation itself is not tested here: it needs write access, and tests have no
 # side effects outside the runner.
@@ -45,7 +50,7 @@ on:
 permissions: {}
 
 jobs:
-  format-write:
+  test:
     permissions:
       contents: read
     runs-on: ${{ matrix.os }}
@@ -122,7 +127,7 @@ jobs:
         env:
           CHANGED: ${{ steps.format-again.outputs.changed || steps.format-again-released.outputs.changed }}
         run: test "$CHANGED" = "false"
-  format-check:
+  test-check:
     permissions:
       contents: read
     runs-on: ${{ matrix.os }}
@@ -136,6 +141,29 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
+
+      # Positive control: the same check on the same runner succeeds on formatted input, so the
+      # failure asserted below cannot come from the runner or the setup
+      - name: Run format action in check mode on formatted input (local)
+        id: control
+        if: ${{ !inputs.use-released }}
+        uses: ./
+        with:
+          check: true
+          create-pull-request: false
+      - name: Run format action in check mode on formatted input (released)
+        id: control-released
+        if: ${{ inputs.use-released }}
+        uses: durandtibo/format-files-action@1c50829b34a99c23bb309a56546722f594c2996b # ratchet:durandtibo/format-files-action@v0.0.2
+        with:
+          check: true
+          create-pull-request: false
+
+      - name: Assert the positive control succeeded with changed=false
+        shell: bash
+        env:
+          CHANGED: ${{ steps.control.outputs.changed || steps.control-released.outputs.changed }}
+        run: test "$CHANGED" = "false"
 
       - name: Create badly formatted fixtures
         shell: bash
@@ -180,7 +208,7 @@ jobs:
       - name: Assert no changes were left on disk
         shell: bash
         run: test -z "$(git status --porcelain)"
-  format-check-clean:
+  test-check-clean:
     permissions:
       contents: read
     runs-on: ${{ matrix.os }}
@@ -221,7 +249,7 @@ jobs:
   # Regression test for the action being run on a repository that does not contain the action's
   # own Makefile/.make/. The action is checked out in a subdirectory, and the workspace root is
   # a fresh consumer-like repository.
-  format-consumer-repo:
+  test-consumer-repo:
     # The released version does not contain the include-path fix yet
     if: ${{ !inputs.use-released }}
     permissions:
@@ -271,7 +299,7 @@ jobs:
             exit 1
           fi
   # An empty repository (no file the action formats) is a success in both modes
-  format-no-files:
+  test-no-files:
     # The released version does not contain the include-path fix yet
     if: ${{ !inputs.use-released }}
     permissions:
@@ -321,7 +349,7 @@ jobs:
           test "$CHECK_CHANGED" = "false"
           test -z "$(git status --porcelain)"
   # Files excluded through .prettierignore and .gitignore are left untouched
-  format-ignored-files:
+  test-ignored-files:
     # The released version does not contain the include-path fix yet
     if: ${{ !inputs.use-released }}
     permissions:
@@ -366,7 +394,7 @@ jobs:
           test "$(cat ignored-by-prettier.yaml)" = 'foo:    bar'
           test "$(cat ignored-by-git.yaml)" = 'foo:    bar'
   # Check mode must detect each file type on its own, fail, and leave the tree untouched
-  format-check-per-type:
+  test-check-per-type:
     permissions:
       contents: read
     runs-on: ${{ matrix.os }}
@@ -381,6 +409,29 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
+
+      # Positive control: the same check on the same runner succeeds on formatted input, so the
+      # failure asserted below cannot come from the runner or the setup
+      - name: Run format action in check mode on formatted input (local)
+        id: control
+        if: ${{ !inputs.use-released }}
+        uses: ./
+        with:
+          check: true
+          create-pull-request: false
+      - name: Run format action in check mode on formatted input (released)
+        id: control-released
+        if: ${{ inputs.use-released }}
+        uses: durandtibo/format-files-action@1c50829b34a99c23bb309a56546722f594c2996b # ratchet:durandtibo/format-files-action@v0.0.2
+        with:
+          check: true
+          create-pull-request: false
+
+      - name: Assert the positive control succeeded with changed=false
+        shell: bash
+        env:
+          CHANGED: ${{ steps.control.outputs.changed || steps.control-released.outputs.changed }}
+        run: test "$CHANGED" = "false"
 
       - name: Create one badly formatted fixture
         shell: bash
@@ -426,7 +477,7 @@ jobs:
           test "$CHANGED" = "true"
           test -z "$(git status --porcelain)"
   # Check mode never opens a pull request, even when create-pull-request is true
-  format-check-no-pull-request:
+  test-check-no-pull-request:
     permissions:
       contents: read
     runs-on: ${{ matrix.os }}
@@ -440,6 +491,29 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
+
+      # Positive control: the same check on the same runner succeeds on formatted input, so the
+      # failure asserted below cannot come from the runner or the setup
+      - name: Run format action in check mode on formatted input (local)
+        id: control
+        if: ${{ !inputs.use-released }}
+        uses: ./
+        with:
+          check: true
+          create-pull-request: true
+      - name: Run format action in check mode on formatted input (released)
+        id: control-released
+        if: ${{ inputs.use-released }}
+        uses: durandtibo/format-files-action@1c50829b34a99c23bb309a56546722f594c2996b # ratchet:durandtibo/format-files-action@v0.0.2
+        with:
+          check: true
+          create-pull-request: true
+
+      - name: Assert the positive control succeeded with changed=false
+        shell: bash
+        env:
+          CHANGED: ${{ steps.control.outputs.changed || steps.control-released.outputs.changed }}
+        run: test "$CHANGED" = "false"
 
       - name: Create a badly formatted fixture
         shell: bash
@@ -479,7 +553,7 @@ jobs:
           test -z "$(git status --porcelain)"
   # Write mode produces the exact formatted output, handles nested directories and file names
   # with spaces, and does not open a pull request when create-pull-request is false
-  format-write-content:
+  test-write-content:
     permissions:
       contents: read
     runs-on: ${{ matrix.os }}
@@ -531,3 +605,46 @@ jobs:
           test "$(cat tmp-format-test/no-trailing-newline.yaml)" = 'foo: bar'
           test "$(tail -c1 tmp-format-test/no-trailing-newline.yaml | wc -l | tr -d ' ')" = '1'
           grep -q 'name = "x"' tmp-format-test/bad.toml
+  # The action runs from the exported archive, i.e. only the files a release ships. `uses: ./`
+  # in the other jobs runs the whole checkout and would hide a file that is export-ignore'd by
+  # mistake (ci-export.yaml checks the list of files, this job checks that the action works).
+  test-export:
+    # The released action is already the exported archive
+    if: ${{ !inputs.use-released }}
+    permissions:
+      contents: read
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    strategy:
+      max-parallel: 8
+      fail-fast: false
+      matrix:
+        os: ${{ fromJson(inputs.test-matrix).os_latest }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
+
+      - name: Extract the exported archive and create a badly formatted fixture
+        shell: bash
+        run: |
+          mkdir exported
+          git archive --worktree-attributes HEAD | tar -x -C exported
+          printf 'exported/\n' >>.gitignore
+          printf 'foo:    bar\n' >bad.yaml
+          git add -A
+          git -c user.name=test -c user.email=test@example.com commit -m 'test: add unformatted fixture' --quiet
+
+      - name: Run the exported action
+        id: format
+        uses: ./exported
+        with:
+          create-pull-request: false
+
+      - name: Assert the exported action reformatted the fixture
+        shell: bash
+        env:
+          CHANGED: ${{ steps.format.outputs.changed }}
+        run: |
+          test "$CHANGED" = "true"
+          test "$(cat bad.yaml)" = 'foo: bar'
