@@ -52,15 +52,16 @@ properties the action must have (P1 to P12) and the planned changes; check a cha
   `# ratchet:<owner>/<repo>@<tag>` comment, never to tags or branches.
 - Keep `check` semantics: in check mode, revert changes with `git checkout -- .`, fail the step,
   and never open a pull request.
-- Only Linux and macOS runners are supported; do not introduce Windows-only assumptions or
-  GNU-only/BSD-only tool flags in the Makefile targets.
+- Only Linux and macOS runners are supported (Windows is not supported and not tested); do not
+  introduce Windows-only assumptions or GNU-only/BSD-only tool flags in the Makefile targets.
 - Workflows use least-privilege `permissions` and set `timeout-minutes` on jobs.
 - Only ship what the action needs at runtime: `action.yml`, `LICENSE`, the root `Makefile` and
   `.make/` are exported, and `.gitattributes` marks everything else `export-ignore`. Never
   `export-ignore` the `Makefile` or `.make/`. When the action starts using a new file, un-ignore it
   there and add it to `EXPECTED_FILES` in `dev/check_export.sh`. Never make the action read tests,
-  fixtures or other repo files that are not exported. Check the exported set with `make check-export` (`dev/check_export.sh`, run by `ci-export.yaml`),
-  or by hand with `git archive --worktree-attributes HEAD | tar t`.
+  fixtures or other repo files that are not exported. Check the exported set with `make check-export`
+  (`dev/check_export.sh`, run by `ci-export.yaml`), or by hand with
+  `git archive --worktree-attributes HEAD | tar t`.
 
 ## Makefile rules (`Makefile`, `.make/`)
 
@@ -88,8 +89,8 @@ Files are prefixed by role:
   holds no steps, only jobs that call the reusable workflows below.
   - `lib-get-test-matrix.yaml`: loads the OS list (Linux and macOS runners) once from
     `durandtibo/workflow-config-action`, with the same keys in every action repository (`os_matrix`,
-    `os_macos`, `os_latest`, `python_versions`, `python_versions_standard`) and passes it to the test jobs as `test-matrix`. The
-    supported OS list lives in that action, never hardcoded in this repo.
+    `os_macos`, `os_latest`, `python_versions`, `python_versions_standard`) and passes it to the test jobs as
+    `test-matrix`. The supported OS list lives in that action, never hardcoded in this repo.
   - `ci-export.yaml`: runs `make check-export`: the files shipped by `git archive` are exactly the
     files the action needs (`uses: ./` hides an `export-ignore` mistake).
   - `ci-format.yaml`: runs the `make lint-*` / `make check-format-shell` targets.
@@ -97,11 +98,11 @@ Files are prefixed by role:
     released yet, on the Linux/macOS matrix. Covers write mode (reformats, `changed=true`,
     idempotent) and check mode (fails and leaves the tree untouched on unformatted input,
     succeeds on formatted input), plus `test-export`, which runs the action from the `git archive`
-    output (local only). Jobs are named `test` (default usage), `test-<usage>` and `test-<edge case>`.
-    Every negative check-mode job first runs a positive control on the same runner. Badly formatted fixtures are generated at runtime so the format
-    bot never "fixes" them.
-- `nightly.yaml`: nightly entry point that calls `ci-action.yaml` with `use-released: true`, the same tests
-  against the last released tag.
+    output (local only). Jobs are named `test` (default usage), `test-<usage>` and
+    `test-<edge case>`. Every negative check-mode job first runs a positive control on the same
+    runner. Badly formatted fixtures are generated at runtime so the format bot never "fixes" them.
+- `nightly.yaml`: nightly entry point that calls `ci-action.yaml` with `use-released: true`, the
+  same tests against the last released tag. It is not part of `ci.yaml`.
 - `ci-verify-workflows.yaml`: lints the workflow files themselves. It has its own triggers and is
   not called from `ci.yaml`.
 - `security-*.yaml`: dependency review on pull requests and OSSF Scorecard.
@@ -117,8 +118,8 @@ Conventions:
   run alone. Add a new check as a new workflow plus a job in `ci.yaml`.
 - Put `make` targets in the steps rather than duplicating commands, so local runs and CI match.
 - Start each file with a comment saying what it does, and update it when the behaviour changes.
-- When the stable tag tested in `ci-action.yaml` (the released steps) changes, update the comment at the top of that
-  file too.
+- When the stable tag tested in `ci-action.yaml` (the released steps) changes, update the comment
+  at the top of that file too.
 
 ## Tests
 
@@ -149,7 +150,9 @@ Rules:
   (`os_matrix`); edge cases (one input, one unusual file) run on `os_latest` only. Local and
   released runs share one file: every action step exists twice (`if: !inputs.use-released` and
   `if: inputs.use-released`). A job the released version cannot pass yet gets
-  `if: ${{ !inputs.use-released }}` and a comment saying why.
+  `if: ${{ !inputs.use-released }}` and a comment saying why. `ci.yaml` calls `ci-action.yaml`
+  with `false`, `nightly.yaml` with `true`. A verify step reads the outcome of whichever step ran
+  (`inputs.use-released && steps.format-released.outcome || steps.format.outcome`).
 - The action tests use the real action, real tools and the real `git`, never a fake. Fixtures are
   throwaway files created at runtime under the runner, so the format bot never "fixes" them.
 - Failure paths use `continue-on-error: true`, an `id`, and a step that asserts `steps.<id>.outcome`.
