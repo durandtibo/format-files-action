@@ -10,7 +10,8 @@ request with the changes (via `peter-evans/create-pull-request`). In `check` mod
 and leaves the working tree untouched. The formatting logic lives in the `Makefile` and the shared
 `.make/` directory, which the action runs with `make --file="$ACTION_PATH/Makefile" format`. There
 is no separate script: the action's steps are inline in `action.yml`, and it is tested end to end by
-the `ci-action.yaml` workflow (local and released). `review/target_state.md` lists the
+the `ci-action.yaml` workflow (local and released). `dev/` holds maintainer helpers
+(`check_export.sh`), not part of the action. `review/target_state.md` lists the
 properties the action must have (P1 to P12) and the planned changes; check a change against it.
 
 ## Environment
@@ -57,7 +58,8 @@ properties the action must have (P1 to P12) and the planned changes; check a cha
 - Only ship what the action needs at runtime: `action.yml`, `LICENSE`, the root `Makefile` and
   `.make/` are exported, and `.gitattributes` marks everything else `export-ignore`. Never
   `export-ignore` the `Makefile` or `.make/`. When the action starts using a new file, un-ignore it
-  there. Check the exported set with `make check-export` (`dev/check_export.sh`, run by `ci-export.yaml`),
+  there and add it to `EXPECTED_FILES` in `dev/check_export.sh`. Never make the action read tests,
+  fixtures or other repo files that are not exported. Check the exported set with `make check-export` (`dev/check_export.sh`, run by `ci-export.yaml`),
   or by hand with `git archive --worktree-attributes HEAD | tar t`.
 
 ## Makefile rules (`Makefile`, `.make/`)
@@ -155,6 +157,14 @@ Rules:
   never push or open one. If something cannot be tested in CI (the pull request creation), write
   down which check covers it.
 - Set `timeout-minutes` and `fail-fast: false` on matrix jobs.
+- Test a behaviour at the cheapest level that can show it. The action tests check the contract
+  and the wiring: inputs reach the Makefile and `create-pull-request`, outputs are set, check mode
+  fails. Do not re-test a formatter's own behaviour there.
+- Every input that changes what the action does (`check`, `create-pull-request`) has a case that
+  proves it reached the action. Inputs only forwarded to `peter-evans/create-pull-request`
+  (`token`, `branch`, `title`, ...) cannot be tested in CI without side effects: say so in the PR.
+- Check what is shipped: the exported set (`make check-export`) must contain every file the action
+  needs, because `uses: ./` runs the whole checkout and hides a missing file.
 - Keep the README inputs, outputs and tool table in step with `action.yml`.
 
 ## Reporting
