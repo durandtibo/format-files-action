@@ -212,7 +212,7 @@ jobs:
     permissions:
       contents: read
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
+    timeout-minutes: 5
     strategy:
       max-parallel: 8
       fail-fast: false
