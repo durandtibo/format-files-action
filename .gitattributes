@@ -14,3 +14,5 @@
 /README.md export-ignore
 /SECURITY.md export-ignore
 /dev/ export-ignore
+/checkmake.ini export-ignore
+/.yamllint.yaml export-ignore
