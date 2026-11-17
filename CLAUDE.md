@@ -10,7 +10,8 @@ request with the changes (via `peter-evans/create-pull-request`). In `check` mod
 and leaves the working tree untouched. The formatting logic lives in the `Makefile` and the shared
 `.make/` directory, which the action runs with `make --file="$ACTION_PATH/Makefile" format`. There
 is no separate script: the action's steps are inline in `action.yml`, and it is tested end to end by
-the `ci-action.yaml` and `nightly-test-released.yaml` workflows.
+the `ci-action.yaml` and `nightly-test-released.yaml` workflows. `review/target_state.md` lists the
+properties the action must have (P1 to P12) and the planned changes; check a change against it.
 
 ## Environment
 
@@ -23,7 +24,7 @@ the `ci-action.yaml` and `nightly-test-released.yaml` workflows.
 - There is no local test suite. The action is tested by `ci-action.yaml` and `nightly-test-released.yaml`,
   which cannot be run locally; say so in the PR instead of claiming they pass.
 
-``## Git workflow
+## Git workflow
 
 - One branch and one PR per logical change, branched from an up-to-date `main`. Never commit or
   push to `main`.
@@ -37,7 +38,7 @@ the `ci-action.yaml` and `nightly-test-released.yaml` workflows.
 - On conflicts with `main`, merge `origin/main` into the branch; do not rebase and force-push.
 - Update `README.md` when inputs, outputs, behaviour, or workflows change.
 - Releases are immutable exact version tags (`v0.0.2`, ...). Do not create or move floating tags
-  (`v0`, `latest`) and do not document them as an option.``
+  (`v0`, `latest`) and do not document them as an option.
 
 ## Action rules (`action.yml`)
 
@@ -62,6 +63,15 @@ the `ci-action.yaml` and `nightly-test-released.yaml` workflows.
   and keep the tool table in `README.md` accurate.
 - Code must pass `make lint` (yamllint, checkmake, shellcheck, markdownlint, actionlint) and
   `make format`.
+
+## Shell rules (inline `run:` steps, `Makefile`, `.make/`)
+
+- Must stay portable between GNU and BSD tools (`sed`, `date`, `mktemp`, etc.): Linux and macOS
+  runners are both supported.
+- Quote all variables; fail early with a clear `::error` message that says what failed and why.
+- Code must pass `shellcheck` and `shfmt` via `make lint` / `make format`.
+- Never rely on `set -e` alone: a caller in an `||` list turns it off. Check the exit status of
+  commands that can fail and `exit 1` explicitly.
 
 ## Workflow structure (`.github/workflows/`)
 
@@ -105,6 +115,37 @@ Conventions:
   no changes, each file type).
 - Every bug fix needs a regression case that fails without the fix.
 - If a check fails for a real reason, report it rather than weakening the test.
+
+## Testing strategy
+
+The strategy is the same for all the action repositories of `durandtibo`. This repository has no
+script of its own, so the action is tested end to end and there is no code level (bats, pytest).
+
+Two levels:
+
+1. **Local action**: the action from this checkout (`uses: ./`) in a real workflow
+   (`ci-action.yaml`, called by `ci.yaml`).
+2. **Released action**: the latest stable release (`uses: durandtibo/format-files-action@<sha>`),
+   run nightly with the same cases as level 1 (`nightly-test-released.yaml`, called by
+   `nightly.yaml`). Never run it on pull requests.
+
+Rules:
+
+- Never write an OS in a workflow: read the list from `durandtibo/workflow-config-action` through
+  `lib-get-test-matrix.yaml`. The same matrix runs on pull requests, pushes and the schedule.
+- General behaviour (write mode, check mode, idempotency) runs on the full OS matrix. Keep
+  `nightly-test-released.yaml` a mirror of `ci-action.yaml`: a change to one is made in the
+  other, unless the released version does not have the feature yet (say so in a comment).
+- The action tests use the real action, real tools and the real `git`, never a fake. Fixtures are
+  throwaway files created at runtime under the runner, so the format bot never "fixes" them.
+- Failure paths use `continue-on-error: true`, an `id`, and a step that asserts `steps.<id>.outcome`.
+  Assert exact outputs (`changed`) and file contents, not log messages. A negative test needs a
+  positive run on the same runner before it, so it cannot pass for the wrong reason.
+- Tests have no side effects outside the runner: check mode never opens a pull request, and tests
+  never push or open one. If something cannot be tested in CI (the pull request creation), write
+  down which check covers it.
+- Set `timeout-minutes` and `fail-fast: false` on matrix jobs.
+- Keep the README inputs, outputs and tool table in step with `action.yml`.
 
 ## Reporting
 
