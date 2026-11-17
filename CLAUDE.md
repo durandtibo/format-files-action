@@ -54,6 +54,10 @@ properties the action must have (P1 to P12) and the planned changes; check a cha
 - Only Linux and macOS runners are supported; do not introduce Windows-only assumptions or
   GNU-only/BSD-only tool flags in the Makefile targets.
 - Workflows use least-privilege `permissions` and set `timeout-minutes` on jobs.
+- Only ship what the action needs at runtime: `action.yml`, `LICENSE`, the root `Makefile` and
+  `.make/` are exported, and `.gitattributes` marks everything else `export-ignore`. Never
+  `export-ignore` the `Makefile` or `.make/`. When the action starts using a new file, un-ignore it
+  there. Check the exported set with `git archive --worktree-attributes HEAD | tar t`.
 
 ## Makefile rules (`Makefile`, `.make/`)
 
