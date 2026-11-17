@@ -7,8 +7,12 @@ name: Get Test Matrix
 # across every test workflow.
 #
 # Only the Unix runners (Linux and macOS) are exposed because the action
-# supports nothing else. The Python versions of the shared config are not
-# used: this repository does not test against any Python version.
+# supports nothing else. The matrix has:
+#   - os_matrix: every Linux and macOS runner (general behaviour tests).
+#   - os_latest: only the *-latest runners (edge cases that depend on the OS).
+#   - python_versions: the Python versions of the shared config. This repository has no
+#     Python code, so no job uses them; they are kept so the loader has the same shape
+#     as in the other action repositories.
 #
 # Usage:
 #   jobs:
@@ -25,7 +29,7 @@ on:
   workflow_call:
     outputs:
       test_matrix:
-        description: "JSON string containing os_matrix (the Linux and macOS runners)"
+        description: "JSON string containing os_matrix, os_latest and python_versions"
         value: ${{ jobs.get-matrix.outputs.test_matrix }}
 
   workflow_dispatch: # Allows manual triggering for testing purposes
@@ -49,10 +53,14 @@ jobs:
         id: build-matrix
         env:
           OS_UNIX: ${{ steps.cfg.outputs.os_unix }}
+          PYTHON_VERSIONS: ${{ steps.cfg.outputs.python_versions }}
         run: |
           test_matrix=$(jq -nc \
             --argjson os_matrix "$OS_UNIX" \
-            '{os_matrix: $os_matrix}')
+            --argjson python_versions "$PYTHON_VERSIONS" \
+            '{os_matrix: $os_matrix,
+              os_latest: ($os_matrix | map(select(endswith("-latest")))),
+              python_versions: $python_versions}')
           echo "test_matrix=$test_matrix" >> "$GITHUB_OUTPUT"
 
       - name: Display test matrix

@@ -227,7 +227,7 @@ in write mode (including idempotency) and check mode:
 
 - `ci.yaml` (pull requests, pushes to `main`, nightly) tests the current code through
   `ci-format.yaml` (lint) and `ci-action.yaml` (the action itself, `uses: ./`).
-- `nightly.yaml` tests the latest release through `nightly-test-released.yaml`.
+- `nightly.yaml` tests the latest release by calling `ci-action.yaml` with `use-released: true`.
 - `bot-*.yaml` run scheduled automation, including `bot-format-files.yaml`, which formats this repo
   weekly with the released action.
 
