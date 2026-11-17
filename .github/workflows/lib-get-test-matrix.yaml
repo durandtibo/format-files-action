@@ -6,13 +6,15 @@ name: Get Test Matrix
 # updated in one place (that action's config) instead of being duplicated
 # across every test workflow.
 #
-# Only the Unix runners (Linux and macOS) are exposed because the action
-# supports nothing else. The matrix has:
+# The file is the same in every action repository and exposes the same keys:
 #   - os_matrix: every Linux and macOS runner (general behaviour tests).
+#   - os_macos: the macOS runners only.
 #   - os_latest: only the *-latest runners (edge cases that depend on the OS).
-#   - python_versions: the Python versions of the shared config. This repository has no
-#     Python code, so no job uses them; they are kept so the loader has the same shape
-#     as in the other action repositories.
+#   - python_versions: every Python version of the shared config.
+#   - python_versions_standard: the standard (not free-threaded) Python versions.
+# Only the Unix runners (Linux and macOS) are exposed because the action supports nothing else.
+# This repository has no Python code, so no job uses the Python lists; they are kept so the
+# loader has the same shape as in the other action repositories.
 #
 # Usage:
 #   jobs:
@@ -29,7 +31,7 @@ on:
   workflow_call:
     outputs:
       test_matrix:
-        description: "JSON string containing os_matrix, os_latest and python_versions"
+        description: "JSON string containing os_matrix, os_macos, os_latest, python_versions and python_versions_standard"
         value: ${{ jobs.get-matrix.outputs.test_matrix }}
 
   workflow_dispatch: # Allows manual triggering for testing purposes
@@ -53,14 +55,20 @@ jobs:
         id: build-matrix
         env:
           OS_UNIX: ${{ steps.cfg.outputs.os_unix }}
+          OS_MACOS: ${{ steps.cfg.outputs.os_macos }}
           PYTHON_VERSIONS: ${{ steps.cfg.outputs.python_versions }}
+          PYTHON_VERSIONS_STANDARD: ${{ steps.cfg.outputs.python_versions_standard }}
         run: |
           test_matrix=$(jq -nc \
             --argjson os_matrix "$OS_UNIX" \
+            --argjson os_macos "$OS_MACOS" \
             --argjson python_versions "$PYTHON_VERSIONS" \
+            --argjson python_versions_standard "$PYTHON_VERSIONS_STANDARD" \
             '{os_matrix: $os_matrix,
+              os_macos: $os_macos,
               os_latest: ($os_matrix | map(select(endswith("-latest")))),
-              python_versions: $python_versions}')
+              python_versions: $python_versions,
+              python_versions_standard: $python_versions_standard}')
           echo "test_matrix=$test_matrix" >> "$GITHUB_OUTPUT"
 
       - name: Display test matrix
