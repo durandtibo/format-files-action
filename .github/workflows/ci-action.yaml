@@ -444,7 +444,7 @@ jobs:
             shell) printf '# bad shell\nif true; then\necho ok\nfi\n' >tmp-format-test/bad.sh ;;
             markdown) printf '#   heading\n\n*  item\n*   item2\n' >tmp-format-test/bad.md ;;
             toml) printf '[package]\nname    =    "x"\n' >tmp-format-test/bad.toml ;;
-            makefile) printf 'all:\n\t@echo hi\nfoo:=1\n' >tmp-format-test/bad.mk ;;
+            makefile) printf 'all:\n\t@echo hi\nfoo:=1\n' >bad.mk ;; # *.mk is only matched at the repository root
           esac
           git add -A
           git -c user.name=test -c user.email=test@example.com commit -m 'test: add unformatted fixture' --quiet
