@@ -11,7 +11,7 @@ and leaves the working tree untouched. The formatting logic lives in the `Makefi
 `.make/` directory, which the action runs with `make --file="$ACTION_PATH/Makefile" format`. There
 is no separate script: the action's steps are inline in `action.yml`, and it is tested end to end by
 the `ci-action.yaml` workflow (local and released). `dev/` holds maintainer helpers
-(`check_export.sh`), not part of the action. `review/target_state.md` lists the
+(`check_export.sh`, `check_readme_sync.sh`), not part of the action. `review/target_state.md` lists the
 properties the action must have (P1 to P12) and the planned changes; check a change against it.
 
 ## Environment
@@ -45,7 +45,8 @@ properties the action must have (P1 to P12) and the planned changes; check a cha
 
 ## Action rules (`action.yml`)
 
-- Keep input and output names, defaults, and descriptions consistent with `README.md`. Renaming or
+- Keep input and output names, defaults, and descriptions consistent with `README.md`
+  (`make check-readme` checks the names and the defaults). Renaming or
   removing an input or output is a breaking change and must be flagged.
 - Pass inputs to scripts through `env:` (e.g. `CHECK`, `ACTION_PATH`), never by interpolating them
   in `run:`.
@@ -56,7 +57,8 @@ properties the action must have (P1 to P12) and the planned changes; check a cha
   and never open a pull request.
 - Only Linux and macOS runners are supported (Windows is not supported and not tested); do not
   introduce Windows-only assumptions or GNU-only/BSD-only tool flags in the Makefile targets.
-- Workflows use least-privilege `permissions` and set `timeout-minutes` on jobs.
+- Workflows use least-privilege `permissions` and set `timeout-minutes` on jobs. They do not use
+  `concurrency`.
 - Only ship what the action needs at runtime: `action.yml`, `LICENSE`, the root `Makefile` and
   `.make/` are exported, and `.gitattributes` marks everything else `export-ignore`. Never
   `export-ignore` the `Makefile` or `.make/`. When the action starts using a new file, un-ignore it
@@ -95,6 +97,8 @@ Files are prefixed by role:
     `test-matrix`. The supported OS list lives in that action, never hardcoded in this repo.
   - `ci-export.yaml`: runs `make check-export`: the files shipped by `git archive` are exactly the
     files the action needs (`uses: ./` hides an `export-ignore` mistake).
+  - `ci-readme.yaml`: runs `make check-readme` (`dev/check_readme_sync.sh`): the README inputs,
+    outputs and defaults are those of `action.yml`.
   - `ci-format.yaml`: runs the `make lint-*` / `make check-format-shell` targets.
   - `ci-action.yaml`: runs the action from this checkout (`uses: ./`), i.e. the version not
     released yet, on the Linux/macOS matrix. Covers write mode (reformats, `changed=true`,
@@ -133,8 +137,10 @@ Conventions:
 
 ## Testing strategy
 
-The strategy is the same for all the action repositories of `durandtibo`. This repository has no
-script of its own, so the action is tested end to end and there is no code level (bats, pytest).
+The strategy is the same for all the action repositories of `durandtibo`. The full reasoning and
+the properties (T1 to T16) are in
+[`review/testing.md`](https://github.com/durandtibo/cancel-queued-runs-action/blob/main/review/testing.md)
+of `cancel-queued-runs-action`. This repository has no script of its own, so the action is tested end to end and there is no code level (bats, pytest).
 
 Two levels:
 
@@ -162,8 +168,10 @@ Rules:
   positive run on the same runner before it, so it cannot pass for the wrong reason.
 - Tests have no side effects outside the runner: check mode never opens a pull request, and tests
   never push or open one. If something cannot be tested in CI (the pull request creation), write
-  down which check covers it.
-- Set `timeout-minutes` and `fail-fast: false` on matrix jobs.
+  down which check covers it: `bot-format-files.yaml`, which runs the released action on this
+  repository, covers the pull request creation.
+- Set `timeout-minutes`, `fail-fast: false` and `max-parallel` on matrix jobs. Document the number
+  of cells per run in the header of `ci-action.yaml` and update it when a job is added.
 - Test a behaviour at the cheapest level that can show it. The action tests check the contract
   and the wiring: inputs reach the Makefile and `create-pull-request`, outputs are set, check mode
   fails. Do not re-test a formatter's own behaviour there.
