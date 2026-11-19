@@ -7,6 +7,8 @@
 # Every case runs both ways: each "Run format action" step exists twice (local and released)
 # and the assertions read whichever one ran.
 #
+# It can also be run alone (workflow_dispatch): the get-matrix job then loads the OS lists.
+#
 # Badly formatted YAML, Makefile, shell, TOML, and Markdown fixtures are generated at runtime
 # (not committed) so the repo's own scheduled format bot never "fixes" them.
 #
@@ -46,11 +48,27 @@ on:
         required: false
         default: false
         type: boolean
+  workflow_dispatch: # to run the tests alone; the matrix is loaded by the get-matrix job
+    inputs:
+      use-released:
+        description: "Test the latest released action instead of the one in this checkout"
+        required: false
+        default: false
+        type: boolean
 
 permissions: {}
 
 jobs:
+  # Only when run alone (workflow_dispatch): the callers pass `test-matrix` themselves.
+  get-matrix:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    uses: ./.github/workflows/lib-get-test-matrix.yaml
+    permissions:
+      contents: read
+
   test:
+    needs: get-matrix
+    if: ${{ !cancelled() && (needs.get-matrix.result == 'success' || needs.get-matrix.result == 'skipped') }}
     permissions:
       contents: read
     runs-on: ${{ matrix.os }}
@@ -59,7 +77,7 @@ jobs:
       max-parallel: 8
       fail-fast: false
       matrix:
-        os: ${{ fromJson(inputs.test-matrix).os_matrix }}
+        os: ${{ fromJson(inputs.test-matrix || needs.get-matrix.outputs.test_matrix).os_matrix }}
 
     steps:
       - name: Checkout
@@ -128,6 +146,8 @@ jobs:
           CHANGED: ${{ steps.format-again.outputs.changed || steps.format-again-released.outputs.changed }}
         run: test "$CHANGED" = "false"
   test-check:
+    needs: get-matrix
+    if: ${{ !cancelled() && (needs.get-matrix.result == 'success' || needs.get-matrix.result == 'skipped') }}
     permissions:
       contents: read
     runs-on: ${{ matrix.os }}
@@ -136,7 +156,7 @@ jobs:
       max-parallel: 8
       fail-fast: false
       matrix:
-        os: ${{ fromJson(inputs.test-matrix).os_matrix }}
+        os: ${{ fromJson(inputs.test-matrix || needs.get-matrix.outputs.test_matrix).os_matrix }}
 
     steps:
       - name: Checkout
@@ -209,6 +229,8 @@ jobs:
         shell: bash
         run: test -z "$(git status --porcelain)"
   test-check-clean:
+    needs: get-matrix
+    if: ${{ !cancelled() && (needs.get-matrix.result == 'success' || needs.get-matrix.result == 'skipped') }}
     permissions:
       contents: read
     runs-on: ${{ matrix.os }}
@@ -217,7 +239,7 @@ jobs:
       max-parallel: 8
       fail-fast: false
       matrix:
-        os: ${{ fromJson(inputs.test-matrix).os_matrix }}
+        os: ${{ fromJson(inputs.test-matrix || needs.get-matrix.outputs.test_matrix).os_matrix }}
 
     steps:
       - name: Checkout
@@ -250,8 +272,9 @@ jobs:
   # own Makefile/.make/. The action is checked out in a subdirectory, and the workspace root is
   # a fresh consumer-like repository.
   test-consumer-repo:
+    needs: get-matrix
     # The released version does not contain the include-path fix yet
-    if: ${{ !inputs.use-released }}
+    if: ${{ !cancelled() && (needs.get-matrix.result == 'success' || needs.get-matrix.result == 'skipped') && !inputs.use-released }}
     permissions:
       contents: read
     runs-on: ${{ matrix.os }}
@@ -260,7 +283,7 @@ jobs:
       max-parallel: 8
       fail-fast: false
       matrix:
-        os: ${{ fromJson(inputs.test-matrix).os_latest }}
+        os: ${{ fromJson(inputs.test-matrix || needs.get-matrix.outputs.test_matrix).os_latest }}
 
     steps:
       - name: Checkout the action
@@ -300,8 +323,9 @@ jobs:
           fi
   # An empty repository (no file the action formats) is a success in both modes
   test-no-files:
+    needs: get-matrix
     # The released version does not contain the include-path fix yet
-    if: ${{ !inputs.use-released }}
+    if: ${{ !cancelled() && (needs.get-matrix.result == 'success' || needs.get-matrix.result == 'skipped') && !inputs.use-released }}
     permissions:
       contents: read
     runs-on: ${{ matrix.os }}
@@ -310,7 +334,7 @@ jobs:
       max-parallel: 8
       fail-fast: false
       matrix:
-        os: ${{ fromJson(inputs.test-matrix).os_latest }}
+        os: ${{ fromJson(inputs.test-matrix || needs.get-matrix.outputs.test_matrix).os_latest }}
 
     steps:
       - name: Checkout the action
@@ -350,8 +374,9 @@ jobs:
           test -z "$(git status --porcelain)"
   # Files excluded through .prettierignore and .gitignore are left untouched
   test-ignored-files:
+    needs: get-matrix
     # The released version does not contain the include-path fix yet
-    if: ${{ !inputs.use-released }}
+    if: ${{ !cancelled() && (needs.get-matrix.result == 'success' || needs.get-matrix.result == 'skipped') && !inputs.use-released }}
     permissions:
       contents: read
     runs-on: ${{ matrix.os }}
@@ -360,7 +385,7 @@ jobs:
       max-parallel: 8
       fail-fast: false
       matrix:
-        os: ${{ fromJson(inputs.test-matrix).os_latest }}
+        os: ${{ fromJson(inputs.test-matrix || needs.get-matrix.outputs.test_matrix).os_latest }}
 
     steps:
       - name: Checkout the action
@@ -395,6 +420,8 @@ jobs:
           test "$(cat ignored-by-git.yaml)" = 'foo:    bar'
   # Check mode must detect each file type on its own, fail, and leave the tree untouched
   test-check-per-type:
+    needs: get-matrix
+    if: ${{ !cancelled() && (needs.get-matrix.result == 'success' || needs.get-matrix.result == 'skipped') }}
     permissions:
       contents: read
     runs-on: ${{ matrix.os }}
@@ -403,7 +430,7 @@ jobs:
       max-parallel: 8
       fail-fast: false
       matrix:
-        os: ${{ fromJson(inputs.test-matrix).os_latest }}
+        os: ${{ fromJson(inputs.test-matrix || needs.get-matrix.outputs.test_matrix).os_latest }}
         fixture: [yaml, shell, markdown, toml, makefile]
 
     steps:
@@ -478,6 +505,8 @@ jobs:
           test -z "$(git status --porcelain)"
   # Check mode never opens a pull request, even when create-pull-request is true
   test-check-no-pull-request:
+    needs: get-matrix
+    if: ${{ !cancelled() && (needs.get-matrix.result == 'success' || needs.get-matrix.result == 'skipped') }}
     permissions:
       contents: read
     runs-on: ${{ matrix.os }}
@@ -486,7 +515,7 @@ jobs:
       max-parallel: 8
       fail-fast: false
       matrix:
-        os: ${{ fromJson(inputs.test-matrix).os_latest }}
+        os: ${{ fromJson(inputs.test-matrix || needs.get-matrix.outputs.test_matrix).os_latest }}
 
     steps:
       - name: Checkout
@@ -554,6 +583,8 @@ jobs:
   # Write mode produces the exact formatted output, handles nested directories and file names
   # with spaces, and does not open a pull request when create-pull-request is false
   test-write-content:
+    needs: get-matrix
+    if: ${{ !cancelled() && (needs.get-matrix.result == 'success' || needs.get-matrix.result == 'skipped') }}
     permissions:
       contents: read
     runs-on: ${{ matrix.os }}
@@ -562,7 +593,7 @@ jobs:
       max-parallel: 8
       fail-fast: false
       matrix:
-        os: ${{ fromJson(inputs.test-matrix).os_latest }}
+        os: ${{ fromJson(inputs.test-matrix || needs.get-matrix.outputs.test_matrix).os_latest }}
 
     steps:
       - name: Checkout
@@ -609,8 +640,9 @@ jobs:
   # in the other jobs runs the whole checkout and would hide a file that is export-ignore'd by
   # mistake (ci-export.yaml checks the list of files, this job checks that the action works).
   test-export:
+    needs: get-matrix
     # The released action is already the exported archive
-    if: ${{ !inputs.use-released }}
+    if: ${{ !cancelled() && (needs.get-matrix.result == 'success' || needs.get-matrix.result == 'skipped') && !inputs.use-released }}
     permissions:
       contents: read
     runs-on: ${{ matrix.os }}
@@ -619,7 +651,7 @@ jobs:
       max-parallel: 8
       fail-fast: false
       matrix:
-        os: ${{ fromJson(inputs.test-matrix).os_latest }}
+        os: ${{ fromJson(inputs.test-matrix || needs.get-matrix.outputs.test_matrix).os_latest }}
 
     steps:
       - name: Checkout
