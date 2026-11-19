@@ -110,7 +110,7 @@ Files are prefixed by role:
 - `nightly.yaml`: nightly entry point that calls `ci-action.yaml` with `use-released: true`, the
   same tests against the last released tag. It is not part of `ci.yaml`.
 - `ci-verify-workflows.yaml`: lints the workflow files themselves. It has its own triggers and is
-  not called from `ci.yaml`, so it can be a required check.
+  not called from `ci.yaml`.
 - `security-*.yaml`: dependency review on pull requests and OSSF Scorecard.
 - `bot-*.yaml`: scheduled automation that opens PRs (`bot-format-files` formats this repo with the
   last released action, `bot-pin-action` pins actions with ratchet, `bot-sync-shared-makefile` syncs
