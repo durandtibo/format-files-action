@@ -168,7 +168,8 @@ Rules:
   positive run on the same runner before it, so it cannot pass for the wrong reason.
 - Tests have no side effects outside the runner: check mode never opens a pull request, and tests
   never push or open one. If something cannot be tested in CI (the pull request creation), write
-  down which check covers it.
+  down which check covers it: `bot-format-files.yaml`, which runs the released action on this
+  repository, covers the pull request creation.
 - Set `timeout-minutes`, `fail-fast: false` and `max-parallel` on matrix jobs. Document the number
   of cells per run in the header of `ci-action.yaml` and update it when a job is added.
 - Test a behaviour at the cheapest level that can show it. The action tests check the contract
