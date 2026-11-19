@@ -9,3 +9,7 @@ include $(MAKEFILE_DIR).make/all.mk
 .PHONY: check-export
 check-export: ## Check that the exported files are the files the action needs
 	./dev/check_export.sh
+
+.PHONY: check-readme
+check-readme: ## Check that the README inputs, outputs and defaults match action.yml
+	./dev/check_readme_sync.sh
