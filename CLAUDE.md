@@ -40,7 +40,7 @@ properties the action must have (P1 to P12) and the planned changes; check a cha
   (no `\``): the escape characters are not rendered well. Write them as plain Markdown.
 - On conflicts with `main`, merge `origin/main` into the branch; do not rebase and force-push.
 - Update `README.md` when inputs, outputs, behaviour, or workflows change.
-- Releases are immutable exact version tags (`v0.0.2`, ...). Do not create or move floating tags
+- Releases are immutable exact version tags (`v0.1.0`, ...). Do not create or move floating tags
   (`v0`, `latest`) and do not document them as an option.
 
 ## Action rules (`action.yml`)

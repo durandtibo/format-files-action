@@ -10,7 +10,7 @@ A composite GitHub Action that formats YAML, Makefile, shell, TOML, and Markdown
 and, if anything changed, opens a pull request with the result.
 
 > [!NOTE]
-> Pin an exact release tag (for example `@v0.0.2`) or a full commit SHA. This repository publishes
+> Pin an exact release tag (for example `@v0.1.0`) or a full commit SHA. This repository publishes
 > immutable exact tags only and has no floating tags such as `v1`.
 
 Point it at any checked-out repo — it doesn't need its own formatting config or tooling installed.
@@ -128,7 +128,7 @@ permissions:
 
 steps:
   - uses: actions/checkout@v4
-  - uses: durandtibo/format-files-action@v0.0.2
+  - uses: durandtibo/format-files-action@v0.1.0
 ```
 
 ### Check formatting in CI
@@ -138,7 +138,7 @@ Fails the job if any file isn't already formatted, without leaving any changes b
 ```yaml
 steps:
   - uses: actions/checkout@v4
-  - uses: durandtibo/format-files-action@v0.0.2
+  - uses: durandtibo/format-files-action@v0.1.0
     with:
       check: true
 ```
@@ -148,7 +148,7 @@ steps:
 ```yaml
 - name: Format files
   id: format
-  uses: durandtibo/format-files-action@v0.0.2
+  uses: durandtibo/format-files-action@v0.1.0
 
 - name: Show result
   run: echo "changed=${{ steps.format.outputs.changed }} pr=${{ steps.format.outputs.pull-request-url }}"
@@ -163,7 +163,7 @@ permissions:
 
 steps:
   - uses: actions/checkout@v4
-  - uses: durandtibo/format-files-action@v0.0.2
+  - uses: durandtibo/format-files-action@v0.1.0
     with:
       github-app-client-id: ${{ secrets.APP_CLIENT_ID }}
       github-app-private-key: ${{ secrets.APP_PRIVATE_KEY }}
@@ -172,7 +172,7 @@ steps:
 ### Custom branch, commit message, and PR title/body
 
 ```yaml
-- uses: durandtibo/format-files-action@v0.0.2
+- uses: durandtibo/format-files-action@v0.1.0
   with:
     branch: bot/reformat
     commit-message: Reformat files
@@ -202,7 +202,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - uses: durandtibo/format-files-action@v0.0.2
+      - uses: durandtibo/format-files-action@v0.1.0
         with:
           github-app-client-id: ${{ secrets.APP_CLIENT_ID }}
           github-app-private-key: ${{ secrets.APP_PRIVATE_KEY }}
